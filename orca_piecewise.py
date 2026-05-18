@@ -23,15 +23,15 @@ from .orca_absorption_spectrum_parser import (
 from .orca_excited_states_parser import (
     parse_orca_excited_states,
 )
-from molecular_qm_models import (
+from .orca_frequency_parser import (
     parse_vibrational_frequencies,
     parse_normal_modes,
     parse_ir_spectrum,
 )
-from molecular_qm_models import (
+from .orca_mayer_parser import (
     parse_mayer_analysis,
 )
-from molecular_qm_models import OrcaInput, OrcaRun
+
 from molecular_qm_models import QMInput
 from molecular_qm_models.qm_result import QMResult
 from molecular_qm_models import QMResult_elprop
@@ -43,6 +43,7 @@ from simstack.models import Parameters
 from simstack.models.file_list import FileListIO, FileListModel
 from simstack.models.files import FileStack
 from simstack.models.parameters import SlurmParameters
+from .pyorca import OrcaRun, OrcaInput
 
 logger = logging.getLogger("OrcaNode")
 

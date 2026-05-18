@@ -1,5 +1,5 @@
 [project]
-name = "orca"
+name = "molecular_qm_orca"
 version = "0.1.0"
 description = "ORCA wrapper"
 requires-python = ">=3.12"
@@ -11,7 +11,7 @@ dependencies = [
 molecular_qm_models = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["orca"]
+packages = ["molecular_qm_orca"]
 
 [build-system]
 requires = ["hatchling"]
