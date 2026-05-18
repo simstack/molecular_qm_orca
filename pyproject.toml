@@ -16,3 +16,8 @@ packages = ["molecular_qm_orca"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.entry-points."simstack.modules"]
+all_modules = "molecular_qm_orca"
+
+
