@@ -214,6 +214,7 @@ def set_orca_memory_and_pal_options_according_to_slurm_parameters(
         ) is not None:
             slurm_params = parent_params.slurm_parameters
         else:
+            node_runner.warning("Using node_slurm_parameters to fix UI problems. This should not happen.")
             slurm_params = node_slurm_params
 
         node_runner.info(
