@@ -261,7 +261,7 @@ def postprocess_orca_qm_result(
         return None
 
 
-def _normalise_run_result(run_result: object) -> Iterable[FileStack]:
+async def _normalise_run_result(run_result: object) -> Iterable[FileStack]:
     """Normalise various payload shapes returned from ``orca_run_only``.
 
     Nested node calls within Simstack may yield bare lists of FileStacks,
@@ -273,11 +273,20 @@ def _normalise_run_result(run_result: object) -> Iterable[FileStack]:
     if isinstance(run_result, list):
         return run_result
     if isinstance(run_result, FileListModel):
-        return list(run_result.file_stacks)
+        files = []
+        async for f in run_result:
+            files.append(f)
+        return files
     if isinstance(run_result, FileListIO):
-        return list(run_result.file_list.file_stacks)
+        return list(run_result.file_list)
     if hasattr(run_result, "files"):
-        return list(getattr(run_result, "files"))
+        files_attr = getattr(run_result, "files")
+        if hasattr(files_attr, "__aiter__"):
+            files = []
+            async for f in files_attr:
+                files.append(f)
+            return files
+        return list(files_attr)
     raise TypeError(f"Unsupported run_result type {type(run_result)}")
 
 
@@ -675,7 +684,7 @@ async def orca_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             return node_runner.fail(f"orca_run_only failed: {e}")
 
         try:
-            run_files = list(_normalise_run_result(run_result))
+            run_files = list(await _normalise_run_result(run_result))
         except TypeError as e:
             return node_runner.fail(str(e))
 
@@ -855,7 +864,7 @@ async def orca_jinja_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             return node_runner.fail(f"orca_jinja_run_only failed: {e}")
 
         try:
-            run_files = list(_normalise_run_result(run_result))
+            run_files = list(await _normalise_run_result(run_result))
         except TypeError as e:
             return node_runner.fail(str(e))
 
