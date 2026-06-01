@@ -5,7 +5,7 @@ from simstack.models.simple_table import SimpleTable
 
 def parse_orca_absorption_spectrum(content: str) -> Optional[SimpleTable]:
     """
-    Parse ORCA absorption spectrum from the output file content using the approach in pyorca.py.
+    Parse ORCA absorption spectrum from the output file content using the approach in orca_output.py.
 
     Parses absorption spectrum data including transition, energy (eV), energy (cm⁻¹),
     wavelength (nm), oscillator strength, D², and dipole moment components (DX, DY, DZ).

@@ -9,7 +9,7 @@ HARTREE_TO_CM = 219474.6313632
 
 def parse_orca_excited_states(content: str) -> Tuple[SimpleTable, SimpleTable]:
     """
-    Parse ORCA TD-DFT excited states from output file content using the approach in pyorca.py.
+    Parse ORCA TD-DFT excited states from output file content using the approach in orca_output.py.
 
     Parses all excited state energies in eV, cm⁻¹, S² and multiplicity into a SimpleTable.
     Parses the orbital transitions into a second SimpleTable with entries: state, orbital1, orbital2, coefficient, c.

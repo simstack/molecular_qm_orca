@@ -101,7 +101,7 @@ def multiplicity_to_string(multiplicity:int) -> str:
 #         if os.path.exists("orca.out"):
 #             # get the filename without the extension
 #             path_without_extension = ""  # os.path.splitext(os.path.basename("file_path"))[0]
-#             orca_run = OrcaRun(path_without_extension)
+#             orca_run = OrcaOutput(path_without_extension)
 #             if hasattr(orca_run, "scf_converge"):
 #                 orca_run.success = orca_run.scf_converge
 #             # if orca_run.engrad is not None:

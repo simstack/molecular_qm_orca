@@ -17,18 +17,18 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Iterable
 
-from .orca_absorption_spectrum_parser import (
+from molecular_qm_orca.lib.orca_absorption_spectrum_parser import (
     parse_orca_absorption_spectrum,
 )
-from .orca_excited_states_parser import (
+from molecular_qm_orca.lib.orca_excited_states_parser import (
     parse_orca_excited_states,
 )
-from .orca_frequency_parser import (
+from molecular_qm_orca.lib.orca_frequency_parser import (
     parse_vibrational_frequencies,
     parse_normal_modes,
     parse_ir_spectrum,
 )
-from .orca_mayer_parser import (
+from molecular_qm_orca.lib.orca_mayer_parser import (
     parse_mayer_analysis,
 )
 
@@ -43,7 +43,7 @@ from simstack.models import Parameters
 from simstack.models.file_list import FileListIO, FileListModel
 from simstack.models.files import FileStack
 from simstack.models.parameters import SlurmParameters
-from .pyorca import OrcaRun, OrcaInput
+from molecular_qm_orca.deprecated.orca_output import OrcaOutput, OrcaInput
 
 logger = logging.getLogger("OrcaNode")
 
@@ -129,7 +129,7 @@ def _build_orca_command_from_config(resource: str, program_name: str = "orca") -
     return " && ".join(scripts)
 
 
-def _log_elprop_basic(orca_run: OrcaRun, node_runner: NodeRunner) -> None:
+def _log_elprop_basic(orca_run: OrcaOutput, node_runner: NodeRunner) -> None:
     """Log a few basic electronic-property quantities for debugging.
 
     This is shared between monolithic and piecewise nodes so that logs are
@@ -155,7 +155,7 @@ def _log_elprop_basic(orca_run: OrcaRun, node_runner: NodeRunner) -> None:
 
 
 def postprocess_orca_qm_result(
-    orca_run: OrcaRun,
+    orca_run: OrcaOutput,
     qm_result: QMResult,
     node_runner: NodeRunner,
     qm_input: Optional[QMInput] = None,
@@ -172,7 +172,7 @@ def postprocess_orca_qm_result(
     * Parses excited states, absorption spectra, Mayer bond analysis and
       vibrational data from ``orca.out``.
     * Constructs and returns a :class:`QMResult_elprop` instance derived
-      directly from :class:`OrcaRun`.
+      directly from :class:`OrcaOutput`.
     """
 
     _log_elprop_basic(orca_run, node_runner)
@@ -254,10 +254,10 @@ def postprocess_orca_qm_result(
             parent_qm_result=qm_result,
             task_id=node_runner.task_id,
         )
-        node_runner.info("QMResult_elprop created from OrcaRun (postprocess helper)")
+        node_runner.info("QMResult_elprop created from OrcaOutput (postprocess helper)")
         return elprop_result
     except Exception as e_elprop:  # pragma: no cover - defensive
-        node_runner.warning(f"Failed to construct QMResult_elprop from OrcaRun: {e_elprop}")
+        node_runner.warning(f"Failed to construct QMResult_elprop from OrcaOutput: {e_elprop}")
         return None
 
 
@@ -303,7 +303,7 @@ async def orca_input_file_only(qm_input: QMInput, **kwargs) -> SimstackResult:
             ``orca.inp`` file (as a single FileStack).
     """
 
-    from .orca_main_lib import (
+    from molecular_qm_orca.lib.orca_main_lib import (
         add_grid_to_simple_input_line,
         add_tddft_block_if_needed,
         add_electronic_properties_block,
@@ -636,7 +636,7 @@ async def orca_collect_results(file_list_io: FileListIO, **kwargs) -> SimstackRe
                 "orca.out", in_memory=True, is_hashable=True, secure_source=True
             )
         )
-        orca_run = OrcaRun("orca")
+        orca_run = OrcaOutput("orca")
 
         qm_result = await QMResult.from_orca_output(orca_run, node_runner.task_id)
 

@@ -29,7 +29,7 @@ __all__ = [
     "OrcaVPT2",
     "OrcaEnGradfile",
     "OrcaOutfile",
-    "OrcaRun",
+    "OrcaOutput",
     "UA_TO_KCAL",
     "UA_TO_EV",
     "BOHR_TO_ANGS",
@@ -1922,7 +1922,7 @@ class OrcaEnGradfile:
             self.grad = np.array(self.grad).reshape(int(len(self.grad) / 3), 3)
 
 
-class OrcaRun(OrcaOutfile):
+class OrcaOutput(OrcaOutfile):
     """A class to gather all results from an Orca ??? VERSION??? calculations. When
     instanciated the class will try to read all available files according
     to the given basename. The class inherit from the OrcaOutfile, the
