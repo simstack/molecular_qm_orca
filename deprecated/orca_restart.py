@@ -49,7 +49,6 @@ from odmantic import ObjectId
 
 from simstack.core.context import context
 from simstack.core.definitions import TaskStatus
-from simstack.core.engine import current_engine_context
 from simstack.core.node import node
 from simstack.core.node_runner import NodeRunner
 
@@ -107,14 +106,14 @@ async def _resolve_qminput_qmresult_from_registry_id(
     if not context.initialized:
         await context.initialize(path=__file__)
 
-    engine = current_engine_context.get()
+    db = context.db
 
     try:
         oid = ObjectId(registry_id)
     except Exception as exc:  # pragma: no cover - defensive
         raise ValueError(f"Invalid NodeRegistry id '{registry_id}': {exc}") from exc
 
-    registry_entry = await engine.find_one(NodeRegistry, NodeRegistry.id == oid)
+    registry_entry = await db.find_one(NodeRegistry, NodeRegistry.id == oid)
     if registry_entry is None:
         raise RuntimeError(f"No NodeRegistry entry found for id={registry_id}")
 
