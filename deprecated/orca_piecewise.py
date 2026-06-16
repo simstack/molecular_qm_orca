@@ -34,7 +34,7 @@ from molecular_qm_orca.lib.orca_mayer_parser import (
 
 from molecular_qm_models import QMInput
 from molecular_qm_models.qm_result import QMResult
-from molecular_qm_models import QMResult_elprop
+from molecular_qm_models import QMResultElProp
 from simstack.core.context import context
 from simstack.core.node import node
 from simstack.core.node_runner import NodeRunner
@@ -159,7 +159,7 @@ def postprocess_orca_qm_result(
     qm_result: QMResult,
     node_runner: NodeRunner,
     qm_input: Optional[QMInput] = None,
-) -> Optional[QMResult_elprop]:
+) -> Optional[QMResultElProp]:
     """Enrich a :class:`QMResult` with additional data parsed from ORCA.
 
     This helper mirrors the "parsing tail" of the monolithic :func:`orca`
@@ -249,7 +249,7 @@ def postprocess_orca_qm_result(
 
     # Build and return the dedicated electronic-properties result.
     try:
-        elprop_result = QMResult_elprop.from_orca_output(
+        elprop_result = QMResultElProp.from_orca_output(
             orca_run,
             parent_qm_result=qm_result,
             task_id=node_runner.task_id,
@@ -720,7 +720,7 @@ async def orca_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             elprop_result = getattr(collect_result, "orca_elprop_result")
         if elprop_result is None:
             try:
-                elprop_result = QMResult_elprop.from_qm_result(orca_result)
+                elprop_result = QMResultElProp.from_qm_result(orca_result)
                 node_runner.info(
                     "QMResult_elprop created from QMResult (fallback in orca_combined node)"
                 )
@@ -893,7 +893,7 @@ async def orca_jinja_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             elprop_result = getattr(collect_result, "orca_elprop_result")
         if elprop_result is None:
             try:
-                elprop_result = QMResult_elprop.from_qm_result(orca_result)
+                elprop_result = QMResultElProp.from_qm_result(orca_result)
                 node_runner.info(
                     "QMResult_elprop created from QMResult (fallback in orca_jinja_combined node)"
                 )

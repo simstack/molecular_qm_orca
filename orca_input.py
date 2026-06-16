@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from applications.electronic_structure import MoleculeList, Molecule
-from applications.electronic_structure.qm_input import QMInput, QMMethod, OptimizationAccuracy, SCFAccuracy
-from applications.electronic_structure.auxiliary_basis import AuxBasisEnum
+from molecular_qm_models.qm_input import QMInput, QMMethod, OptimizationAccuracy, SCFAccuracy
+from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from simstack.models.parameters import SlurmParameters
 
 

@@ -5,7 +5,7 @@ from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
 from simstack.models.files import FileStack
 
-from applications.electronic_structure import QMInput, QMResult, QMResult_elprop
+from applications.electronic_structure import QMInput, QMResult, QMResultElProp
 from .lib.orbital_energies_parser import parse_orbital_energies
 from .lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
 from .lib.orca_excited_states_parser import parse_orca_excited_states
@@ -244,7 +244,7 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
         # Construct and attach dedicated electronic-properties result
         # directly from the OrcaOutput instance.
         try:
-            elprop_result = QMResult_elprop.from_orca_output(
+            elprop_result = QMResultElProp.from_orca_output(
                 orca_run,
                 parent_qm_result=orca_result,
                 task_id=node_runner.task_id,
