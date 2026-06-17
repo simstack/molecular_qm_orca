@@ -171,7 +171,7 @@ def postprocess_orca_qm_result(
       structures if ``qm_input`` is provided.
     * Parses excited states, absorption spectra, Mayer bond analysis and
       vibrational data from ``orca.out``.
-    * Constructs and returns a :class:`QMResult_elprop` instance derived
+    * Constructs and returns a :class:`QMResultElProp` instance derived
       directly from :class:`OrcaOutput`.
     """
 
@@ -254,10 +254,10 @@ def postprocess_orca_qm_result(
             parent_qm_result=qm_result,
             task_id=node_runner.task_id,
         )
-        node_runner.info("QMResult_elprop created from OrcaOutput (postprocess helper)")
+        node_runner.info("QMResultElProp created from OrcaOutput (postprocess helper)")
         return elprop_result
     except Exception as e_elprop:  # pragma: no cover - defensive
-        node_runner.warning(f"Failed to construct QMResult_elprop from OrcaOutput: {e_elprop}")
+        node_runner.warning(f"Failed to construct QMResultElProp from OrcaOutput: {e_elprop}")
         return None
 
 
@@ -600,7 +600,7 @@ async def orca_run_only(file_list_io: FileListIO, **kwargs) -> SimstackResult:
 @node(parameters=parameters)
 async def orca_collect_results(file_list_io: FileListIO, **kwargs) -> SimstackResult:
     """Collect an existing ORCA output (``orca.out`` and related files) and
-    construct both :class:`QMResult` and :class:`QMResult_elprop`.
+    construct both :class:`QMResult` and :class:`QMResultElProp`.
 
     Assumes that ``file_list_io.file_list`` contains at least the
     ``orca.out`` file, and optionally other ORCA output files used by
@@ -608,7 +608,7 @@ async def orca_collect_results(file_list_io: FileListIO, **kwargs) -> SimstackRe
 
     SimstackResult:
         orca_result (QMResult): Parsed result from the ORCA calculations.
-        orca_elprop_result (QMResult_elprop, optional): Electronic
+        orca_elprop_result (QMResultElProp, optional): Electronic
             properties result derived from the same ORCA output.
     """
 
@@ -693,7 +693,7 @@ async def orca_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
         for fs in run_files:
             run_files_io.file_list.append(fs)
 
-        # Step 3: collect results into QMResult (+ QMResult_elprop). Pass
+        # Step 3: collect results into QMResult (+ QMResultElProp). Pass
         # ``qm_input`` so that SMILES/formula information can be attached
         # to the resulting structures, mirroring the monolithic ``orca``
         # node behaviour.
@@ -722,11 +722,11 @@ async def orca_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             try:
                 elprop_result = QMResultElProp.from_qm_result(orca_result)
                 node_runner.info(
-                    "QMResult_elprop created from QMResult (fallback in orca_combined node)"
+                    "QMResultElProp created from QMResult (fallback in orca_combined node)"
                 )
             except Exception as e_elprop:  # pragma: no cover - defensive
                 node_runner.warning(
-                    f"Failed to construct QMResult_elprop from QMResult in orca_combined: {e_elprop}"
+                    f"Failed to construct QMResultElProp from QMResult in orca_combined: {e_elprop}"
                 )
 
         if elprop_result is not None:
@@ -872,7 +872,7 @@ async def orca_jinja_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
         for fs in run_files:
             run_files_io.file_list.append(fs)
 
-        # Step 3: collect results into QMResult (+ QMResult_elprop). As in
+        # Step 3: collect results into QMResult (+ QMResultElProp). As in
         # ``orca_combined``, we pass ``qm_input`` so that structural
         # metadata can be populated consistently with the monolithic
         # ``orca_jinja`` node.
@@ -895,11 +895,11 @@ async def orca_jinja_combined(qm_input: QMInput, **kwargs) -> SimstackResult:
             try:
                 elprop_result = QMResultElProp.from_qm_result(orca_result)
                 node_runner.info(
-                    "QMResult_elprop created from QMResult (fallback in orca_jinja_combined node)"
+                    "QMResultElProp created from QMResult (fallback in orca_jinja_combined node)"
                 )
             except Exception as e_elprop:  # pragma: no cover - defensive
                 node_runner.warning(
-                    f"Failed to construct QMResult_elprop from QMResult in orca_jinja_combined: {e_elprop}"
+                    f"Failed to construct QMResultElProp from QMResult in orca_jinja_combined: {e_elprop}"
                 )
 
         if elprop_result is not None:

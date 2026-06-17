@@ -76,7 +76,7 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
     SimstackResult:
         orca_result (QMResult): Parsed result from the ORCA
             calculations.
-        orca_elprop_result (QMResult_elprop, optional): Electronic
+        orca_elprop_result (QMResultElProp, optional): Electronic
             properties result derived from the same ORCA output.
         files (List[FileStack]): List of files generated during
             execution of the node (such as ``orca.inp``, ``orca.out`` and
