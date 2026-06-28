@@ -10,7 +10,7 @@ import pandas as pd
 from pymatgen.electronic_structure.core import Spin
 from pymatgen.core import Element
 from pymatgen.core import Molecule as PymatgenMolecule
-from molecular_qm_models import Molecule
+from molecular_qm_models import Molecule, BOHR_TO_ANGSTROM
 import logging
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ __all__ = [
 ]
 
 # convertion Bohr --> Angstrom
-BOHR_TO_ANGS = 0.52917721092  # Angstrom
+BOHR_TO_ANGS = BOHR_TO_ANGSTROM  # Angstrom
 UA_TO_KCAL = 627.5095  # kcal.mol-1
 UA_TO_EV = 27.2114  # eV
 
