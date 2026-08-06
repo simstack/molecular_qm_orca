@@ -1,4 +1,5 @@
 import os
+import subprocess
 from typing import List
 from simstack.core.context import context
 from simstack.core.node import node
@@ -12,11 +13,18 @@ from .lib.orca_excited_states_parser import parse_orca_excited_states
 from .lib.orca_frequency_parser import parse_vibrational_frequencies, parse_normal_modes, parse_ir_spectrum
 from .lib.orca_mayer_parser import parse_mayer_analysis
 from .orca_input import orca_input_factory
-from molecular_qm_orca.deprecated.orca_output import OrcaOutput
+import logging
+from .orca_output import OrcaOutput
+
+logger = logging.getLogger(__name__)
 
 
-def orca_run_command(input_files: List[str], result_files: List[str],arg_hash: str):
-    return context.config.resource_config.run("orca", input_files, result_files)
+def orca_run_command(input_files: List[str], result_files: List[str], arg_hash: str):
+    try:
+        context.resource_config.run("orca", input_files, result_files)
+        return 0
+    except subprocess.CalledProcessError as e:
+        return e.returncode
 
 @node
 async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
@@ -94,8 +102,10 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
 
     orca_input_gen = orca_input_factory(qm_input, **kwargs)
 
+    # Await blocks first so molecular_input_block can update _first_line
+    # (e.g. MORead) before first_line is read.
+    blocks = await orca_input_gen.blocks()
     first_line = orca_input_gen.first_line
-    blocks = orca_input_gen.blocks
 
     with open("orca.inp", "w") as f:
         f.write(first_line)
@@ -108,10 +118,10 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
     input_files = ["orca.inp", "orca.gbw"]
     result_files = ["orca.out", "orca.gbw", "orca.xyz","orca.trj", "orca.densities", "orca.engrad", "orca.opt",
                     "orca.property", "orca_run.log"]
-    result = orca_run_command(input_files, result_files, kwargs["arg_hash"])
+    returncode = orca_run_command(input_files, result_files, kwargs["arg_hash"])
 
-    if result.returncode != 0:
-        return node_runner.fail(f"orca execution failed with return code {result.returncode}")
+    if returncode != 0:
+        return node_runner.fail(f"orca execution failed with return code {returncode}")
 
 
     orca_run = None
@@ -173,9 +183,10 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
             if orca_result.final_structure:
                 orca_result.final_structure.smiles = qm_input.molecule.smiles
                 orca_result.final_structure.formula = qm_input.molecule.formula
-            async for molecule in orca_result.structures:
-                molecule.smiles = qm_input.molecule.smiles
-                molecule.formula = qm_input.molecule.formula
+            if orca_result.structures is not None:
+                for molecule in orca_result.structures:
+                    molecule.smiles = qm_input.molecule.smiles
+                    molecule.formula = qm_input.molecule.formula
 
             node_runner.info("done standard ORCA parsing")
 

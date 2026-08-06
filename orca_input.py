@@ -55,44 +55,44 @@ class OrcaInput(ABC):
         use_input_geometry = True
         qm_input = self.qm_input
         node_runner = self.node_runner
-        if qm_input.restartable:
-            if qm_input.restart_files is not None and len(qm_input.restart_files) > 0:
-                gbw_file_name = "orca.gbw"
-                orca_gbw = await qm_input.restart_files.find(gbw_file_name)
-                if orca_gbw is not None:
-                    orca_gbw.get(Path.cwd())
+        #if qm_input.restartable:
+        if qm_input.restart_files is not None and len(qm_input.restart_files) > 0:
+            gbw_file_name = "orca.gbw"
+            orca_gbw = await qm_input.restart_files.find(gbw_file_name)
+            if orca_gbw is not None:
+                orca_gbw.get(Path.cwd())
+                self._first_line += " MORead"
+                self._blocks.append(f"%moinp \"{gbw_file_name}\"\n\n")
+                node_runner.info(f"found {gbw_file_name} restart file. Using it for geometry optimization. ")
+            coordinate_file_name = "orca.xyz"
+            orca_xyz = await qm_input.restart_files.find(coordinate_file_name)
+            if orca_xyz is not None:
+                orca_xyz.get(Path.cwd())
+                use_input_geometry = False
+                self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} {coordinate_file_name}\n")
+                node_runner.info(f"found {coordinate_file_name} restart file. Using it for geometry optimization. ")
+        else:
+            if qm_input.optimization and os.path.exists("orca_traj.xyz"):
+                molecule_list = MoleculeList.from_xyz(qm_input.molecule, "orca_traj.xyz")
+                if len(molecule_list) > 0:
+                    molecule = await molecule_list.get_molecule(len(molecule_list) - 1)
+                    self._generate_xyz_block(molecule)
+                self.node_runner.info("found orca.opt file. Using it for geometry optimization. ")
+                use_input_geometry = False
+                self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.opt\n")
+            elif os.path.exists("orca.xyz"):
+                self.node_runner.info("found orca.xyz file. Using it for geometry optimization. ")
+                use_input_geometry = False
+                self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.xyz\n")
+
+            if os.path.exists("orca.gbw"):
+                self.node_runner.info("found orca.gbw file. Using it for geometry optimization. ")
+                if " MORead" not in self.qm_input.first_line:
                     self._first_line += " MORead"
-                    self._blocks.append(f"%moinp \"{gbw_file_name}\"\n\n")
-                    node_runner.info(f"found {gbw_file_name} restart file. Using it for geometry optimization. ")
-                coordinate_file_name = "orca.xyz"
-                orca_xyz = await qm_input.restart_files.find(coordinate_file_name)
-                if orca_xyz is not None:
-                    orca_xyz.get(Path.cwd())
-                    use_input_geometry = False
-                    self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} {coordinate_file_name}\n")
-                    node_runner.info(f"found {coordinate_file_name} restart file. Using it for geometry optimization. ")
-            else:
-                if qm_input.optimization and os.path.exists("orca_traj.xyz"):
-                    molecule_list = MoleculeList.from_xyz(qm_input.molecule, "orca_traj.xyz")
-                    if len(molecule_list) > 0:
-                        molecule = await molecule_list.get_molecule(len(molecule_list) - 1)
-                        self._generate_xyz_block(molecule)
-                    self.node_runner.info("found orca.opt file. Using it for geometry optimization. ")
-                    use_input_geometry = False
-                    self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.opt\n")
-                elif os.path.exists("orca.xyz"):
-                    self.node_runner.info("found orca.xyz file. Using it for geometry optimization. ")
-                    use_input_geometry = False
-                    self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.xyz\n")
-        
-                if os.path.exists("orca.gbw"):
-                    self.node_runner.info("found orca.gbw file. Using it for geometry optimization. ")
-                    if " MORead" not in self.qm_input.first_line:
-                        self._first_line += " MORead"
-                    self._blocks.append("%moinp \"orca.gbw\"\n\n")
-            
+                self._blocks.append("%moinp \"orca.gbw\"\n\n")
+
         if use_input_geometry:
-            await self._generate_xyz_block(qm_input.molecule)
+            self._generate_xyz_block(qm_input.molecule)
 
     def _generate_xyz_block(self, molecule: Molecule):
         geometry_block = f"* xyz {self.qm_input.charge} {self.qm_input.multiplicity}\n"
@@ -103,12 +103,17 @@ class OrcaInput(ABC):
 
     @property
     def first_line(self) -> str:
-        """Returns the first line of the ORCA input file."""
+        """Returns the simple-input line of the ORCA input file.
+
+        ORCA requires this line to start with ``!`` (see pyorca.OrcaInput).
+        """
         if self.qm_input.first_line:
-            first_line = f" {self.qm_input.first_line}"
+            content = self.qm_input.first_line.strip()
         else:
-            first_line = self._get_base_first_line() + self._first_line + "\n\n"
-        return first_line
+            content = (self._get_base_first_line() + self._first_line).strip()
+        if not content.startswith("!"):
+            content = f"! {content}"
+        return content + "\n\n"
 
     @abstractmethod
     def _get_base_first_line(self) -> str:
@@ -120,10 +125,9 @@ class OrcaInput(ABC):
         """Returns the safety overrides for the calculation."""
         pass
 
-    @property
-    def blocks(self) -> List[str]:
+    async def blocks(self) -> List[str]:
         """Returns a list of blocks for the ORCA input file."""
-        self.molecular_input_block() # this generates one or more blocks for molecular input
+        await self.molecular_input_block() # this generates one or more blocks for molecular input
         blocks = self._get_base_blocks()
         blocks = self._add_constraint_blocks(blocks)
 
