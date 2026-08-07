@@ -1,6 +1,6 @@
 import os
 import subprocess
-from typing import List
+from typing import List, Optional
 from simstack.core.context import context
 from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
@@ -19,12 +19,78 @@ from .orca_output import OrcaOutput
 logger = logging.getLogger(__name__)
 
 
+SCF_NOT_CONVERGED_MSG = (
+    "unfortunately, the SCF has not converged. There may be a way out but we have to stop here"
+)
+
+ORCA_RESULT_FILES = [
+    "orca.out",
+    "orca.gbw",
+    "orca.xyz",
+    "orca.trj",
+    "orca.densities",
+    "orca.engrad",
+    "orca.opt",
+    "orca.property",
+    "orca_run.log",
+]
+
+
 def orca_run_command(input_files: List[str], result_files: List[str], arg_hash: str):
     try:
         context.resource_config.run("orca", input_files, result_files)
         return 0
     except subprocess.CalledProcessError as e:
         return e.returncode
+
+
+def _remove_restart_artifacts():
+    """Remove local ORCA restart artifacts so a clean retry cannot pick them up."""
+    for path in ("orca.gbw", "orca.xyz", "orca.opt", "orca_traj.xyz"):
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                logger.warning("Could not remove restart artifact %s", path)
+
+
+async def _write_orca_input(qm_input: QMInput, use_restart: bool, **kwargs) -> bool:
+    """Generate ``orca.inp`` and return whether restart data was incorporated."""
+    orca_input_gen = orca_input_factory(qm_input, use_restart=use_restart, **kwargs)
+
+    # Await blocks first so molecular_input_block can update _first_line
+    # (e.g. MORead) before first_line is read.
+    blocks = await orca_input_gen.blocks()
+    first_line = orca_input_gen.first_line
+
+    with open("orca.inp", "w") as f:
+        f.write(first_line)
+        for block in blocks:
+            f.write(block)
+
+    return orca_input_gen.used_restart
+
+
+def _is_tolerated_abnormal_termination(qm_input: QMInput, orca_out_contents: Optional[str]) -> bool:
+    return (
+        qm_input.tolerate_failure
+        and orca_out_contents is not None
+        and SCF_NOT_CONVERGED_MSG in orca_out_contents
+    )
+
+
+async def _retry_orca_without_restart(qm_input: QMInput, reason: str, **kwargs) -> int:
+    """Clear restart data, regenerate input, and re-run ORCA."""
+    node_runner = kwargs["node_runner"]
+    node_runner.warning(f"{reason}; retrying without restart data.")
+    _remove_restart_artifacts()
+    await _write_orca_input(qm_input, use_restart=False, **kwargs)
+    node_runner.info_files.append(
+        FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True)
+    )
+    node_runner.info("input files done (retry without restart)")
+    return orca_run_command(["orca.inp"], ORCA_RESULT_FILES, kwargs["arg_hash"])
+
 
 @node
 async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
@@ -50,9 +116,12 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
 
     Similar to :func:`orca`, it performs safety checks for restart and
     supporting files (e.g. ``orca.xyz``, ``orca.gbw`` or user-provided
-    restart files) and incorporates them into the calculation setup. It
-    also logs effective Slurm parameters and other configuration details
-    via :class:`NodeRunner` for debugging and auditing.
+    restart files) and incorporates them into the calculation setup. If a
+    calculation that used restart data fails (non-zero return code or
+    abnormal termination), it automatically retries once from the molecule
+    geometry without restart data. It also logs effective Slurm parameters
+    and other configuration details via :class:`NodeRunner` for debugging
+    and auditing.
 
     After the ORCA subprocess finishes, the node parses the resulting
     ``orca.out`` file to extract ground-state and excited-state
@@ -100,29 +169,23 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
 
     node_runner = kwargs["node_runner"]
 
-    orca_input_gen = orca_input_factory(qm_input, **kwargs)
-
-    # Await blocks first so molecular_input_block can update _first_line
-    # (e.g. MORead) before first_line is read.
-    blocks = await orca_input_gen.blocks()
-    first_line = orca_input_gen.first_line
-
-    with open("orca.inp", "w") as f:
-        f.write(first_line)
-        for block in blocks:
-            f.write(block)
-
+    used_restart = await _write_orca_input(qm_input, use_restart=True, **kwargs)
     node_runner.info_files.append(FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True))
     node_runner.info("input files done")
 
     input_files = ["orca.inp", "orca.gbw"]
-    result_files = ["orca.out", "orca.gbw", "orca.xyz","orca.trj", "orca.densities", "orca.engrad", "orca.opt",
-                    "orca.property", "orca_run.log"]
-    returncode = orca_run_command(input_files, result_files, kwargs["arg_hash"])
+    returncode = orca_run_command(input_files, ORCA_RESULT_FILES, kwargs["arg_hash"])
+
+    if returncode != 0 and used_restart:
+        returncode = await _retry_orca_without_restart(
+            qm_input,
+            f"orca execution failed with return code {returncode} after using restart data",
+            **kwargs,
+        )
+        used_restart = False
 
     if returncode != 0:
         return node_runner.fail(f"orca execution failed with return code {returncode}")
-
 
     orca_run = None
     orca_out_contents = None
@@ -140,19 +203,40 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
                 )
             )
 
-            path_without_extension = "orca"
-            orca_run = OrcaOutput(path_without_extension)
+            orca_run = OrcaOutput(node_runner, "orca.out")
             if not orca_run.normal_termination:
-                if qm_input.tolerate_failure:
-                    with open("orca.out", "r") as f:
-                        orca_out_contents = f.read()
-                    msg = "unfortunately, the SCF has not converged. There may be a way out but we have to stop here"
-                    if msg not in orca_out_contents:
-                        return node_runner.fail("orca did not terminate normally")
-                    else:
-                        node_runner.warning(
-                            "orca did not terminate normally but it was tolerated. Continuing execution."
+                tolerated = _is_tolerated_abnormal_termination(qm_input, orca_out_contents)
+                if used_restart and not tolerated:
+                    returncode = await _retry_orca_without_restart(
+                        qm_input,
+                        "orca did not terminate normally after using restart data",
+                        **kwargs,
+                    )
+                    if returncode != 0:
+                        return node_runner.fail(
+                            f"orca execution failed with return code {returncode}"
                         )
+                    if not os.path.exists("orca.out"):
+                        return node_runner.fail("orca.out file not found")
+                    with open("orca.out", "r", encoding="utf-8", errors="ignore") as f:
+                        orca_out_contents = f.read()
+                    node_runner.info_files.append(
+                        FileStack.from_local_file(
+                            "orca.out", in_memory=True, is_hashable=True, secure_source=True
+                        )
+                    )
+                    orca_run = OrcaOutput(node_runner, "orca.out")
+                    if not orca_run.normal_termination:
+                        if _is_tolerated_abnormal_termination(qm_input, orca_out_contents):
+                            node_runner.warning(
+                                "orca did not terminate normally but it was tolerated. Continuing execution."
+                            )
+                        else:
+                            return node_runner.fail("orca did not terminate normally")
+                elif tolerated:
+                    node_runner.warning(
+                        "orca did not terminate normally but it was tolerated. Continuing execution."
+                    )
                 else:
                     return node_runner.fail("orca did not terminate normally")
             node_runner.info("calculation finished")

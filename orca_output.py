@@ -108,6 +108,8 @@ class OrcaOutput:
             elif "****ORCA TERMINATED NORMALLY****" in line:
                 self.normal_termination = True
 
-        if self.structures.molecules:
-            self.final_structure = self.structures.molecules[-1]
+        if len(self.structures) > 0:
+            # MoleculeList.__getitem__ only serves the object cache for
+            # non-negative indices; [-1] would return an ObjectId.
+            self.final_structure = self.structures[len(self.structures) - 1]
         

@@ -32,6 +32,8 @@ class OrcaInput(ABC):
         self.qm_input = qm_input
         self.kwargs = kwargs
         self.node_runner = kwargs.get("node_runner")
+        self.use_restart = kwargs.get("use_restart", True)
+        self.used_restart = False
         self._first_line = ""
         self._blocks: List[str] = []
         
@@ -46,6 +48,9 @@ class OrcaInput(ABC):
         flags to use them for input geometry; otherwise, it falls back to generating
         input geometry based on the molecule's atomic information.
 
+        When ``use_restart`` is False, restart files and local ORCA restart artifacts
+        are ignored and the calculation starts from the molecule geometry.
+
         Raises:
             Exception: If there is an issue accessing or using restart files during
                        the creation of molecular input blocks.
@@ -56,13 +61,14 @@ class OrcaInput(ABC):
         qm_input = self.qm_input
         node_runner = self.node_runner
         #if qm_input.restartable:
-        if qm_input.restart_files is not None and len(qm_input.restart_files) > 0:
+        if self.use_restart and qm_input.restart_files is not None and len(qm_input.restart_files) > 0:
             gbw_file_name = "orca.gbw"
             orca_gbw = await qm_input.restart_files.find(gbw_file_name)
             if orca_gbw is not None:
                 orca_gbw.get(Path.cwd())
                 self._first_line += " MORead"
                 self._blocks.append(f"%moinp \"{gbw_file_name}\"\n\n")
+                self.used_restart = True
                 node_runner.info(f"found {gbw_file_name} restart file. Using it for geometry optimization. ")
             coordinate_file_name = "orca.xyz"
             orca_xyz = await qm_input.restart_files.find(coordinate_file_name)
@@ -70,8 +76,9 @@ class OrcaInput(ABC):
                 orca_xyz.get(Path.cwd())
                 use_input_geometry = False
                 self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} {coordinate_file_name}\n")
+                self.used_restart = True
                 node_runner.info(f"found {coordinate_file_name} restart file. Using it for geometry optimization. ")
-        else:
+        elif self.use_restart:
             if qm_input.optimization and os.path.exists("orca_traj.xyz"):
                 molecule_list = MoleculeList.from_xyz(qm_input.molecule, "orca_traj.xyz")
                 if len(molecule_list) > 0:
@@ -79,17 +86,22 @@ class OrcaInput(ABC):
                     self._generate_xyz_block(molecule)
                 self.node_runner.info("found orca.opt file. Using it for geometry optimization. ")
                 use_input_geometry = False
+                self.used_restart = True
                 self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.opt\n")
             elif os.path.exists("orca.xyz"):
                 self.node_runner.info("found orca.xyz file. Using it for geometry optimization. ")
                 use_input_geometry = False
+                self.used_restart = True
                 self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} orca.xyz\n")
 
             if os.path.exists("orca.gbw"):
                 self.node_runner.info("found orca.gbw file. Using it for geometry optimization. ")
-                if " MORead" not in self.qm_input.first_line:
+                if " MORead" not in (self.qm_input.first_line or ""):
                     self._first_line += " MORead"
                 self._blocks.append("%moinp \"orca.gbw\"\n\n")
+                self.used_restart = True
+        else:
+            node_runner.info("restart disabled; using molecule geometry without restart data.")
 
         if use_input_geometry:
             self._generate_xyz_block(qm_input.molecule)
