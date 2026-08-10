@@ -11,11 +11,12 @@ def parse_orbital_energies(filename, is_filename=True, logger=None, parse_last_o
 
     
     Returns:
-    pandas.DataFrame: DataFrame containing orbital energies with columns:
+    pandas.DataFrame | None: DataFrame containing orbital energies with columns:
                      - orbital_no: Orbital number
                      - occupation: Occupation number (0.0 or 2.0)
                      - energy_hartree: Energy in Hartree
                      - energy_ev: Energy in eV
+                     Returns None if the ORBITAL ENERGIES section is absent.
     """
     if not parse_last_only:
         raise NotImplementedError("Parsing multiple ORBITAL ENERGIES sections is not yet implemented.")
@@ -37,7 +38,8 @@ def parse_orbital_energies(filename, is_filename=True, logger=None, parse_last_o
     start_idx = start_indices[-1] if start_indices else None
     
     if start_idx is None:
-        raise ValueError("ORBITAL ENERGIES section not found in the file")
+        # Section is optional (e.g. SCF did not finish); caller may skip quietly.
+        return None
     
     # Skip the header lines and find where the data starts
     data_start = None
@@ -48,7 +50,7 @@ def parse_orbital_energies(filename, is_filename=True, logger=None, parse_last_o
             break
     
     if data_start is None:
-        raise ValueError("Orbital energy data header not found")
+        return None
     
     # Parse the orbital energy data
     for i in range(data_start, len(lines)):

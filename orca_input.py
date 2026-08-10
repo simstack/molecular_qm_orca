@@ -1,3 +1,4 @@
+import hashlib
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -7,6 +8,16 @@ from applications.electronic_structure import MoleculeList, Molecule
 from molecular_qm_models.qm_input import QMInput, QMMethod, OptimizationAccuracy, SCFAccuracy
 from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from simstack.models.parameters import SlurmParameters
+from simstack.models.files import FileStack
+
+
+def _materialize_restart_file(file_stack: FileStack, filename: str, local_dir: Path | None = None) -> Path:
+    """Write a restart ``FileStack`` into ``local_dir``, replacing any existing file."""
+    target_dir = local_dir or Path.cwd()
+    target_path = target_dir / filename
+    if target_path.exists():
+        target_path.unlink()
+    return file_stack.get(target_dir)
 
 
 def orca_input_factory(qm_input: QMInput, **kwargs) -> "OrcaInput":
@@ -63,17 +74,27 @@ class OrcaInput(ABC):
         #if qm_input.restartable:
         if self.use_restart and qm_input.restart_files is not None and len(qm_input.restart_files) > 0:
             gbw_file_name = "orca.gbw"
-            orca_gbw = await qm_input.restart_files.find(gbw_file_name)
+            orca_gbw = qm_input.restart_files.find(gbw_file_name)
             if orca_gbw is not None:
-                orca_gbw.get(Path.cwd())
+                gbw_path = _materialize_restart_file(orca_gbw, gbw_file_name)
+                # Prefer stored FileStack metadata; fall back to on-disk values.
+                file_size = orca_gbw.size if orca_gbw.size is not None else gbw_path.stat().st_size
+                file_hash = orca_gbw.hash
+                if not file_hash:
+                    hash_sha256 = hashlib.sha256()
+                    with open(gbw_path, "rb") as f:
+                        for chunk in iter(lambda: f.read(4096), b""):
+                            hash_sha256.update(chunk)
+                    file_hash = hash_sha256.hexdigest()
+                node_runner.log(f"\t\tGBW file hash: {file_hash}, size: {file_size} bytes")
                 self._first_line += " MORead"
                 self._blocks.append(f"%moinp \"{gbw_file_name}\"\n\n")
                 self.used_restart = True
                 node_runner.info(f"found {gbw_file_name} restart file. Using it for geometry optimization. ")
             coordinate_file_name = "orca.xyz"
-            orca_xyz = await qm_input.restart_files.find(coordinate_file_name)
+            orca_xyz = qm_input.restart_files.find(coordinate_file_name)
             if orca_xyz is not None:
-                orca_xyz.get(Path.cwd())
+                _materialize_restart_file(orca_xyz, coordinate_file_name)
                 use_input_geometry = False
                 self._blocks.append(f"* xyzfile {qm_input.charge} {qm_input.multiplicity} {coordinate_file_name}\n")
                 self.used_restart = True
@@ -279,7 +300,7 @@ class OrcaInputSCF(OrcaInput):
 
 
     def _get_base_first_line(self) -> str:
-        from applications.electronic_structure.orca.lib.orca_main_lib import (
+        from molecular_qm_orca.lib.orca_main_lib import (
             add_grid_to_simple_input_line,
             set_method_and_basis_set_for_non_casscf_methods,
         )
@@ -338,7 +359,7 @@ class OrcaInputSCF(OrcaInput):
         return first_line
 
     def _get_base_blocks(self) -> List[str]:
-        from applications.electronic_structure.orca.lib.orca_main_lib import (
+        from molecular_qm_orca.lib.orca_main_lib import (
             add_tddft_block_if_needed,
             add_electronic_properties_block,
         )

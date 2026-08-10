@@ -1,0 +1,374 @@
+{
+  "field_name": "QMResult",
+  "bond_orders_json": null,
+  "charge": 0,
+  "dipole": null,
+  "final_energy": -76.321103612003,
+  "dipole_moment": null,
+  "energies": [
+    -76.321103612003
+  ],
+  "status": null,
+  "error": null,
+  "task_status": null,
+  "normal_termination": true,
+  "optimization_converged": false,
+  "scf_energies": [
+    -76.32110361200328
+  ],
+  "scf_converged": true,
+  "structures": {
+    "field_name": "MoleculeList"
+  },
+  "final_structure": {
+    "field_name": "Molecule",
+    "atoms": [
+      {
+        "field_name": "Atom",
+        "element": "O",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.117,
+        "properties": {}
+      },
+      {
+        "field_name": "Atom",
+        "element": "H",
+        "x": 0.0,
+        "y": 0.755,
+        "z": -0.471,
+        "properties": {}
+      },
+      {
+        "field_name": "Atom",
+        "element": "H",
+        "x": 0.0,
+        "y": -0.755,
+        "z": -0.471,
+        "properties": {}
+      }
+    ],
+    "properties": {},
+    "smiles": null,
+    "formula": null
+  },
+  "excited_states": null,
+  "excited_state_transitions": null,
+  "absorption_spectrum": null,
+  "mayer_analysis": {
+    "name": "mayer analysis",
+    "heading": [
+      "atom",
+      "na",
+      "za",
+      "qa",
+      "va",
+      "bva",
+      "fa"
+    ],
+    "row": [
+      {
+        "atom": "0 O",
+        "na": 8.2873,
+        "za": 8.0,
+        "qa": -0.2873,
+        "va": 2.0219,
+        "bva": 2.0219,
+        "fa": -0.0
+      },
+      {
+        "atom": "1 H",
+        "na": 0.8563,
+        "za": 1.0,
+        "qa": 0.1437,
+        "va": 1.0168,
+        "bva": 1.0168,
+        "fa": -0.0
+      },
+      {
+        "atom": "2 H",
+        "na": 0.8563,
+        "za": 1.0,
+        "qa": 0.1437,
+        "va": 1.0168,
+        "bva": 1.0168,
+        "fa": -0.0
+      }
+    ],
+    "type": [
+      "string",
+      "number",
+      "number",
+      "number",
+      "number",
+      "number",
+      "number"
+    ]
+  },
+  "mayer_bond_orders": {
+    "name": "mayer bond orders",
+    "heading": [
+      "atom1",
+      "atom2",
+      "bond_order"
+    ],
+    "row": [
+      {
+        "atom1": "0 O",
+        "atom2": "1 H",
+        "bond_order": 1.011
+      },
+      {
+        "atom1": "0 O",
+        "atom2": "2 H",
+        "bond_order": 1.011
+      }
+    ],
+    "type": [
+      "string",
+      "string",
+      "number"
+    ]
+  },
+  "vibrational_frequencies": null,
+  "normal_modes": null,
+  "ir_spectrum": null,
+  "enthalpy": null,
+  "gibbs_free_energy": null,
+  "entropy": null,
+  "internal_energy": null,
+  "dftmrci_configurations": null,
+  "max_amplitude_not_in_ref_space": null,
+  "HOMO_value_eV": -7.8535,
+  "LUMO_value_eV": 1.3629,
+  "HOMO_LUMO_gap_eV": 9.2164,
+  "HOMO_value_Hartree": -0.288613,
+  "LUMO_value_Hartree": 0.050086,
+  "HOMO_LUMO_gap_Hartree": 0.33869900000000003,
+  "orbital_energies_table_eV": {
+    "name": "Orbital energies (eV)",
+    "heading": [
+      "orbital_no",
+      "occupation",
+      "energy",
+      "orbital_type"
+    ],
+    "row": [
+      {
+        "orbital_no": 0,
+        "occupation": 2.0,
+        "energy": -520.1272,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 1,
+        "occupation": 2.0,
+        "energy": -26.6555,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 2,
+        "occupation": 2.0,
+        "energy": -13.9773,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 3,
+        "occupation": 2.0,
+        "energy": -9.8773,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 4,
+        "occupation": 2.0,
+        "energy": -7.8535,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 5,
+        "occupation": 0.0,
+        "energy": 1.3629,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 6,
+        "occupation": 0.0,
+        "energy": 3.5157,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 7,
+        "occupation": 0.0,
+        "energy": 15.4535,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 8,
+        "occupation": 0.0,
+        "energy": 17.124,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 9,
+        "occupation": 0.0,
+        "energy": 25.0378,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 10,
+        "occupation": 0.0,
+        "energy": 25.1414,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 11,
+        "occupation": 0.0,
+        "energy": 27.4727,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 12,
+        "occupation": 0.0,
+        "energy": 29.8325,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 13,
+        "occupation": 0.0,
+        "energy": 36.7318,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 14,
+        "occupation": 0.0,
+        "energy": 38.3865,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 15,
+        "occupation": 0.0,
+        "energy": 42.2553,
+        "orbital_type": "virtual"
+      }
+    ],
+    "type": [
+      "number",
+      "number",
+      "number",
+      "string"
+    ]
+  },
+  "orbital_energies_hartree": {
+    "name": "Orbital energies (Hartree)",
+    "heading": [
+      "orbital_no",
+      "occupation",
+      "energy",
+      "orbital_type"
+    ],
+    "row": [
+      {
+        "orbital_no": 0,
+        "occupation": 2.0,
+        "energy": -19.114323,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 1,
+        "occupation": 2.0,
+        "energy": -0.97957,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 2,
+        "occupation": 2.0,
+        "energy": -0.513657,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 3,
+        "occupation": 2.0,
+        "energy": -0.362986,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 4,
+        "occupation": 2.0,
+        "energy": -0.288613,
+        "orbital_type": "occupied"
+      },
+      {
+        "orbital_no": 5,
+        "occupation": 0.0,
+        "energy": 0.050086,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 6,
+        "occupation": 0.0,
+        "energy": 0.129198,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 7,
+        "occupation": 0.0,
+        "energy": 0.567906,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 8,
+        "occupation": 0.0,
+        "energy": 0.629295,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 9,
+        "occupation": 0.0,
+        "energy": 0.920122,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 10,
+        "occupation": 0.0,
+        "energy": 0.923928,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 11,
+        "occupation": 0.0,
+        "energy": 1.009602,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 12,
+        "occupation": 0.0,
+        "energy": 1.096325,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 13,
+        "occupation": 0.0,
+        "energy": 1.349869,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 14,
+        "occupation": 0.0,
+        "energy": 1.410678,
+        "orbital_type": "virtual"
+      },
+      {
+        "orbital_no": 15,
+        "occupation": 0.0,
+        "energy": 1.552852,
+        "orbital_type": "virtual"
+      }
+    ],
+    "type": [
+      "number",
+      "number",
+      "number",
+      "string"
+    ]
+  }
+}

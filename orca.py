@@ -6,7 +6,7 @@ from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
 from simstack.models.files import FileStack
 
-from applications.electronic_structure import QMInput, QMResult, QMResultElProp
+from applications.electronic_structure import QMInput, QMResultElProp
 from .lib.orbital_energies_parser import parse_orbital_energies
 from .lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
 from .lib.orca_excited_states_parser import parse_orca_excited_states
@@ -15,25 +15,24 @@ from .lib.orca_mayer_parser import parse_mayer_analysis
 from .orca_input import orca_input_factory
 import logging
 from .orca_output import OrcaOutput
+from molecular_qm_orca.lib.qm_result_from_orca import ORCA_QMRESULT_FILES, from_orca_output as qm_result_from_orca_output
 
 logger = logging.getLogger(__name__)
 
 
-SCF_NOT_CONVERGED_MSG = (
-    "unfortunately, the SCF has not converged. There may be a way out but we have to stop here"
-)
-
 ORCA_RESULT_FILES = [
     "orca.out",
-    "orca.gbw",
-    "orca.xyz",
-    "orca.trj",
-    "orca.densities",
-    "orca.engrad",
-    "orca.opt",
-    "orca.property",
+    *ORCA_QMRESULT_FILES,
     "orca_run.log",
 ]
+
+# Human-readable logs attached to the node as info_files.
+# Restart/geometry artifacts belong on QMResult.files via
+# :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output` — not here.
+ORCA_INFO_FILES = (
+    "orca.out",
+    "orca_run.log",
+)
 
 
 def orca_run_command(input_files: List[str], result_files: List[str], arg_hash: str):
@@ -46,7 +45,7 @@ def orca_run_command(input_files: List[str], result_files: List[str], arg_hash: 
 
 def _remove_restart_artifacts():
     """Remove local ORCA restart artifacts so a clean retry cannot pick them up."""
-    for path in ("orca.gbw", "orca.xyz", "orca.opt", "orca_traj.xyz"):
+    for path in ("orca.gbw", "orca.xyz", "orca.opt", "orca_traj.xyz", "orca_trj.xyz"):
         if os.path.exists(path):
             try:
                 os.remove(path)
@@ -71,18 +70,129 @@ async def _write_orca_input(qm_input: QMInput, use_restart: bool, **kwargs) -> b
     return orca_input_gen.used_restart
 
 
-def _is_tolerated_abnormal_termination(qm_input: QMInput, orca_out_contents: Optional[str]) -> bool:
-    return (
-        qm_input.tolerate_failure
-        and orca_out_contents is not None
-        and SCF_NOT_CONVERGED_MSG in orca_out_contents
+def _collect_existing_orca_info_files(node_runner) -> None:
+    """Attach ORCA log/info files to the node result (``info_files`` only).
+
+    Restart and geometry artifacts (gbw/xyz/opt/densities/engrad/traj) are not
+    info files; they are collected into ``QMResult.files`` by
+    :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output`.
+    """
+    already = {getattr(fs, "name", None) for fs in node_runner.info_files}
+    for fname in ORCA_INFO_FILES:
+        if not os.path.exists(fname) or fname in already:
+            continue
+        try:
+            node_runner.info_files.append(
+                FileStack.from_local_file(
+                    fname, in_memory=True, is_hashable=True, secure_source=True
+                )
+            )
+            already.add(fname)
+            node_runner.info(f"Attached ORCA info file: {fname}")
+        except Exception as e:
+            node_runner.warning(f"Failed to attach ORCA info file {fname}: {e}")
+
+
+def _apply_convergence_flags(orca_out: OrcaOutput, qm_input: QMInput) -> None:
+    """Apply input-dependent convergence / termination semantics.
+
+    - If optimization was not requested, force ``optimization_converged`` to
+      ``False``.
+    - If optimization was requested, ``normal_termination`` is ``True`` only
+      when both SCF and geometry optimization converged.
+    """
+    if not qm_input.optimization:
+        orca_out.optimization_converged = False
+        return
+
+    orca_out.normal_termination = (
+        orca_out.scf_converged is True and orca_out.optimization_converged is True
     )
 
 
-async def _retry_orca_without_restart(qm_input: QMInput, reason: str, **kwargs) -> int:
+def _apply_nonzero_returncode(
+    orca_out: OrcaOutput, qm_input: QMInput, returncode: int
+) -> str:
+    """Force abnormal termination on non-zero process exit; return error text.
+
+    Sets ``normal_termination=False`` and ``error`` on ``orca_out`` so both
+    fields propagate into :class:`QMResult` via
+    :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output`.
+    """
+    msg = f"orca execution failed with return code {returncode}"
+    if orca_out.scf_converged is False:
+        msg += ": SCF has not converged"
+    if qm_input.optimization and orca_out.optimization_converged is False:
+        msg += ": optimization has not converged"
+    orca_out.normal_termination = False
+    orca_out.error = msg
+    return msg
+
+
+def _continue_after_orca_failure(
+    node_runner, orca_out: Optional[OrcaOutput], qm_input: QMInput, returncode: int
+):
+    """Handle abnormal/nonzero ORCA outcome.
+
+    Preserves outputs (log tail + result files). Returns ``None`` when the failure
+    is tolerated and execution should continue, otherwise the failed node-runner
+    result from ``node_runner.fail``.
+
+    ``tolerate_failure`` covers SCF non-convergence and, for optimization jobs,
+    geometry-optimization non-convergence.
+    """
+    scf_failed = orca_out is not None and orca_out.scf_converged is False
+    opt_failed = (
+        qm_input.optimization
+        and orca_out is not None
+        and orca_out.optimization_converged is False
+    )
+    convergence_failed = scf_failed or opt_failed
+
+    if orca_out is not None:
+        if scf_failed:
+            node_runner.info(
+                "ORCA SCF has not converged; collecting available output files and "
+                "logging the last 100 lines of orca.out."
+            )
+        if opt_failed:
+            node_runner.info(
+                "ORCA geometry optimization has not converged; collecting available "
+                "output files and logging the last 100 lines of orca.out."
+            )
+        orca_out.log_tail()
+        _collect_existing_orca_info_files(node_runner)
+
+    if convergence_failed and qm_input.tolerate_failure:
+        reasons = []
+        if scf_failed:
+            reasons.append("SCF non-convergence")
+        if opt_failed:
+            reasons.append("optimization non-convergence")
+        reason = " and ".join(reasons) if reasons else "convergence failure"
+        node_runner.warning(
+            f"orca did not terminate normally ({reason}) but it was tolerated. "
+            "Continuing execution."
+        )
+        return None
+    if orca_out is not None and orca_out.error:
+        msg = orca_out.error
+    else:
+        msg = (
+            f"orca execution failed with return code {returncode}"
+            if returncode != 0
+            else "orca did not terminate normally"
+        )
+        if scf_failed:
+            msg += ": SCF has not converged"
+        if opt_failed:
+            msg += ": optimization has not converged"
+    return node_runner.fail(msg)
+
+
+async def _retry_orca_without_restart(qm_input: QMInput, **kwargs) -> int:
     """Clear restart data, regenerate input, and re-run ORCA."""
     node_runner = kwargs["node_runner"]
-    node_runner.warning(f"{reason}; retrying without restart data.")
     _remove_restart_artifacts()
     await _write_orca_input(qm_input, use_restart=False, **kwargs)
     node_runner.info_files.append(
@@ -165,176 +275,180 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
         function logs and propagates a detailed error via
         :class:`NodeRunner`.
     """
-
-
     node_runner = kwargs["node_runner"]
 
     used_restart = await _write_orca_input(qm_input, use_restart=True, **kwargs)
     node_runner.info_files.append(FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True))
+    node_runner.log("input files done")
     node_runner.info("input files done")
 
-    input_files = ["orca.inp", "orca.gbw"]
+    input_files = ["orca.inp", "orca.gbw", "orca.xyz"]
     returncode = orca_run_command(input_files, ORCA_RESULT_FILES, kwargs["arg_hash"])
 
-    if returncode != 0 and used_restart:
-        returncode = await _retry_orca_without_restart(
-            qm_input,
-            f"orca execution failed with return code {returncode} after using restart data",
-            **kwargs,
+    orca_run = OrcaOutput.load_orca_output(node_runner)
+    if orca_run is not None:
+        _apply_convergence_flags(orca_run, qm_input)
+
+    # With tolerate_failure, a failed restart is acceptable — do not wipe
+    # restart artifacts and re-run from scratch.
+    node_runner.log(f"orca_run: first try used_restart: {used_restart} returncode: {returncode}")
+    node_runner.info(f"orca_run: first try used_restart: {used_restart} returncode: {returncode}")
+    node_runner.log(f"orca_run.normal_termination: {getattr(orca_run, 'normal_termination', None)}")
+    node_runner.info(f"orca_run.normal_termination: {getattr(orca_run, 'normal_termination', None)}")
+    node_runner.log(f"qm_input.tolerate_failure: {qm_input.tolerate_failure}")
+    node_runner.info(f"qm_input.tolerate_failure: {qm_input.tolerate_failure}")
+    node_runner.log(f"orca_run.scf_converged: {getattr(orca_run, 'scf_converged', None)}")
+    node_runner.info(f"orca_run.scf_converged: {getattr(orca_run, 'scf_converged', None)}")
+    node_runner.log(
+        f"orca_run.optimization_converged: {getattr(orca_run, 'optimization_converged', None)}"
+    )
+    node_runner.info(
+        f"orca_run.optimization_converged: {getattr(orca_run, 'optimization_converged', None)}"
+    )
+
+
+
+    abnormal = returncode != 0 or (orca_run is not None and not orca_run.normal_termination)
+    if used_restart and abnormal and not qm_input.tolerate_failure:
+        reason = f"orca execution failed with return code {returncode} after using restart data"
+        node_runner.warning(f"{reason}; retrying without restart data.")
+        node_runner.log(f"Clearing restart data and re-running ORCA: {reason}")
+        node_runner.info(f"Clearing restart data and re-running ORCA: {reason}")
+        returncode = await _retry_orca_without_restart(qm_input, **kwargs)
+        orca_run = OrcaOutput.load_orca_output(node_runner)
+        if orca_run is not None:
+            _apply_convergence_flags(orca_run, qm_input)
+        node_runner.log(f"orca_run: second try used_restart: {used_restart} returncode: {returncode}")
+        node_runner.info(f"orca_run: second try used_restart: {used_restart} returncode: {returncode}")
+        node_runner.log(
+            f"orca_run: second try scf_converged: {getattr(orca_run, 'scf_converged', None)}"
         )
-        used_restart = False
+        node_runner.info(
+            f"orca_run: second try scf_converged: {getattr(orca_run, 'scf_converged', None)}"
+        )
+        node_runner.log(
+            f"orca_run: second try optimization_converged: "
+            f"{getattr(orca_run, 'optimization_converged', None)}"
+        )
+        node_runner.info(
+            f"orca_run: second try optimization_converged: "
+            f"{getattr(orca_run, 'optimization_converged', None)}"
+        )
+        node_runner.log(
+            f"orca_run: second try normal_termination: "
+            f"{getattr(orca_run, 'normal_termination', None)}"
+        )
+        node_runner.info(
+            f"orca_run: second try normal_termination: "
+            f"{getattr(orca_run, 'normal_termination', None)}"
+        )
+
+    if orca_run is None:
+        return node_runner.fail("orca.out file not found")
 
     if returncode != 0:
-        return node_runner.fail(f"orca execution failed with return code {returncode}")
+        _apply_nonzero_returncode(orca_run, qm_input, returncode)
 
-    orca_run = None
-    orca_out_contents = None
+    if returncode != 0 or not orca_run.normal_termination:
+        failed = _continue_after_orca_failure(node_runner, orca_run, qm_input, returncode)
+        if failed is not None:
+            return failed
+    else:
+        _collect_existing_orca_info_files(node_runner)
+
+    node_runner.info("calculation finished")
+
     try:
-        if os.path.exists("orca.out"):
-            # Cache the full ORCA output directly after the run so that later
-            # post-processing does not rely on the file still being present on
-            # disk. Do this before FileStack operations.
-            with open("orca.out", "r", encoding="utf-8", errors="ignore") as f:
-                orca_out_contents = f.read()
+        orca_result = await qm_result_from_orca_output(orca_run, node_runner.task_id)
 
-            node_runner.info_files.append(
-                FileStack.from_local_file(
-                    "orca.out", in_memory=True, is_hashable=True, secure_source=True
-                )
+        try:
+            dipole_val = getattr(orca_run, "dipole", None)
+            dipole_moment_val = getattr(orca_run, "dipole_moment", None)
+            node_runner.info(
+                f"ORCA result electronic properties: dipole={dipole_val}, dipole_moment={dipole_moment_val}"
+            )
+            hyper_info = getattr(orca_run, "_hyperpolarizability", None)
+            node_runner.info(
+                f"ORCA hyperpolarizability mapping present: {hyper_info is not None}"
+            )
+        except Exception as e_el:  # pragma: no cover - debug logging only
+            node_runner.warning(
+                f"Failed to log ORCA/QMResult electronic properties: {e_el}"
             )
 
-            orca_run = OrcaOutput(node_runner, "orca.out")
-            if not orca_run.normal_termination:
-                tolerated = _is_tolerated_abnormal_termination(qm_input, orca_out_contents)
-                if used_restart and not tolerated:
-                    returncode = await _retry_orca_without_restart(
-                        qm_input,
-                        "orca did not terminate normally after using restart data",
-                        **kwargs,
-                    )
-                    if returncode != 0:
-                        return node_runner.fail(
-                            f"orca execution failed with return code {returncode}"
-                        )
-                    if not os.path.exists("orca.out"):
-                        return node_runner.fail("orca.out file not found")
-                    with open("orca.out", "r", encoding="utf-8", errors="ignore") as f:
-                        orca_out_contents = f.read()
-                    node_runner.info_files.append(
-                        FileStack.from_local_file(
-                            "orca.out", in_memory=True, is_hashable=True, secure_source=True
-                        )
-                    )
-                    orca_run = OrcaOutput(node_runner, "orca.out")
-                    if not orca_run.normal_termination:
-                        if _is_tolerated_abnormal_termination(qm_input, orca_out_contents):
-                            node_runner.warning(
-                                "orca did not terminate normally but it was tolerated. Continuing execution."
-                            )
-                        else:
-                            return node_runner.fail("orca did not terminate normally")
-                elif tolerated:
-                    node_runner.warning(
-                        "orca did not terminate normally but it was tolerated. Continuing execution."
-                    )
-                else:
-                    return node_runner.fail("orca did not terminate normally")
-            node_runner.info("calculation finished")
-        else:
-            node_runner.fail("orca.out file not found")
-    except Exception as e:
-        return node_runner.fail(f"orca.out parsing error {str(e)}")
+        if orca_result.final_structure:
+            orca_result.final_structure.smiles = qm_input.molecule.smiles
+            orca_result.final_structure.formula = qm_input.molecule.formula
+        if orca_result.structures is not None:
+            for molecule in orca_result.structures:
+                molecule.smiles = qm_input.molecule.smiles
+                molecule.formula = qm_input.molecule.formula
 
-    try:
-        if orca_run is not None:
-            orca_result = await QMResult.from_orca_output(orca_run, node_runner.task_id)
+        node_runner.info("done standard ORCA parsing")
 
-            try:
-                dipole_val = getattr(orca_run, "dipole", None)
-                dipole_moment_val = getattr(orca_run, "dipole_moment", None)
-                node_runner.info(
-                    f"ORCA result electronic properties: dipole={dipole_val}, dipole_moment={dipole_moment_val}"
+        # Optional sections (orbitals, excited states, etc.) are often absent
+        # depending on the input; missing data is not a node failure.
+        contents = orca_run.content
+        try:
+            orbital_energies_df = parse_orbital_energies(contents, is_filename=False)
+            if orbital_energies_df is None:
+                node_runner.info("No ORBITAL ENERGIES section in orca.out; skipping.")
+            else:
+                logger.info(
+                    f"Parsed orbital energies DataFrame: {orbital_energies_df.head()}"
                 )
-                hyper_info = getattr(orca_run, "_hyperpolarizability", None)
-                node_runner.info(
-                    f"ORCA hyperpolarizability mapping present: {hyper_info is not None}"
-                )
-            except Exception as e_el:  # pragma: no cover - debug logging only
-                node_runner.warning(
-                    f"Failed to log ORCA/QMResult electronic properties: {e_el}"
-                )
+        except Exception as e:
+            node_runner.warning(f"Error parsing ORCA orbital energies: {e}")
+            orbital_energies_df = None
 
-            if orca_result.final_structure:
-                orca_result.final_structure.smiles = qm_input.molecule.smiles
-                orca_result.final_structure.formula = qm_input.molecule.formula
-            if orca_result.structures is not None:
-                for molecule in orca_result.structures:
-                    molecule.smiles = qm_input.molecule.smiles
-                    molecule.formula = qm_input.molecule.formula
-
-            node_runner.info("done standard ORCA parsing")
-
-            # Use cached orca.out contents from immediately after the run.
-            contents = orca_out_contents
+        if orbital_energies_df is not None:
             try:
-                # Parse orbital energies
-                orbital_energies_df = parse_orbital_energies(contents, is_filename=False)
-                logger.info(f"Parsed orbital energies DataFrame: {orbital_energies_df.head() if orbital_energies_df is not None else 'None'}")
-            except Exception as e:
-                node_runner.error(f"Error parsing ORCA orbital energies: {str(e)}")
-                orbital_energies_df = None
+                orca_result.set_values_from_orbital_energies_dataframe(orbital_energies_df)
+                node_runner.info("Orbital energies parsed and set on QMResult")
+            except Exception as e_orb:  # pragma: no cover - defensive
+                node_runner.warning(f"Failed to set orbital energies on QMResult: {e_orb}")
 
-            # Update the existing QMResult instance with orbital energies
-            if orbital_energies_df is not None:
-                try:
-                    orca_result.set_values_from_orbital_energies_dataframe(orbital_energies_df)
-                    node_runner.info("Orbital energies parsed and set on QMResult (orca_jinja node)")
-                except Exception as e_orb:  # pragma: no cover - defensive
-                    node_runner.warning(f"Failed to set orbital energies on QMResult: {e_orb}")
+        try:
+            states_table, transition_table = parse_orca_excited_states(contents)
+            if states_table and len(states_table.row) > 0:
+                orca_result.excited_states = states_table
+            if transition_table and len(transition_table.row) > 0:
+                orca_result.excited_state_transitions = transition_table
+            node_runner.info("done ORCA excited states parsing")
+        except Exception as e:
+            node_runner.warning(f"Error parsing ORCA excited states: {e}")
 
-            try:
-                states_table, transition_table = parse_orca_excited_states(contents)
-                if states_table and len(states_table.row) > 0:
-                    orca_result.excited_states = states_table
-                if transition_table and len(transition_table.row) > 0:
-                    orca_result.excited_state_transitions = transition_table
-                node_runner.info("done ORCA excited states parsing")
-            except Exception as e:
-                node_runner.error(f"Error parsing ORCA excited states: {str(e)}")
+        try:
+            absorption_spectrum = parse_orca_absorption_spectrum(contents)
+            if absorption_spectrum and len(absorption_spectrum.row) > 0:
+                orca_result.absorption_spectrum = absorption_spectrum
+            node_runner.info("done ORCA absorption spectrum parsing")
+        except Exception as e:
+            node_runner.warning(f"Error parsing ORCA absorption spectrum: {e}")
 
-            try:
-                absorption_spectrum = parse_orca_absorption_spectrum(contents)
-                if absorption_spectrum and len(absorption_spectrum.row) > 0:
-                    orca_result.absorption_spectrum = absorption_spectrum
-                node_runner.info("done ORCA absorption spectrum parsing")
-            except Exception as e:
-                node_runner.error(f"Error parsing ORCA absorption spectrum: {str(e)}")
+        try:
+            mayer_analysis, mayer_bond_orders = parse_mayer_analysis(contents)
+            if mayer_analysis and len(mayer_analysis.row) > 0:
+                orca_result.mayer_analysis = mayer_analysis
+            if mayer_bond_orders and len(mayer_bond_orders.row) > 0:
+                orca_result.mayer_bond_orders = mayer_bond_orders
+            node_runner.info("done ORCA mayer analysis parsing")
+        except Exception as e:
+            node_runner.warning(f"Error parsing ORCA mayer analysis: {e}")
 
-            try:
-                mayer_analysis, mayer_bond_orders = parse_mayer_analysis(contents)
-                if mayer_analysis and len(mayer_analysis.row) > 0:
-                    orca_result.mayer_analysis = mayer_analysis
-                if mayer_bond_orders and len(mayer_bond_orders.row) > 0:
-                    orca_result.mayer_bond_orders = mayer_bond_orders
-                node_runner.info("done ORCA mayer analysis parsing")
-            except Exception as e:
-                node_runner.error(f"Error parsing ORCA mayer analysis: {str(e)}")
-
-            try:
-                vibrational_frequencies = parse_vibrational_frequencies(contents)
-                if vibrational_frequencies and len(vibrational_frequencies.row) > 0:
-                    orca_result.vibrational_frequencies = vibrational_frequencies
-                normal_modes = parse_normal_modes(contents)
-                if normal_modes and len(normal_modes.row) > 0:
-                    orca_result.normal_modes = normal_modes
-                ir_spectrum = parse_ir_spectrum(contents)
-                if ir_spectrum and len(ir_spectrum.row) > 0:
-                    orca_result.ir_spectrum = ir_spectrum
-                node_runner.info("done ORCA vibrational frequencies parsing")
-            except Exception as e:
-                node_runner.error(f"Error parsing ORCA vibrational frequencies: {str(e)}")
-        else:
-            return node_runner.fail("orca_run is none")
+        try:
+            vibrational_frequencies = parse_vibrational_frequencies(contents)
+            if vibrational_frequencies and len(vibrational_frequencies.row) > 0:
+                orca_result.vibrational_frequencies = vibrational_frequencies
+            normal_modes = parse_normal_modes(contents)
+            if normal_modes and len(normal_modes.row) > 0:
+                orca_result.normal_modes = normal_modes
+            ir_spectrum = parse_ir_spectrum(contents)
+            if ir_spectrum and len(ir_spectrum.row) > 0:
+                orca_result.ir_spectrum = ir_spectrum
+            node_runner.info("done ORCA vibrational frequencies parsing")
+        except Exception as e:
+            node_runner.warning(f"Error parsing ORCA vibrational frequencies: {e}")
 
         # Construct and attach dedicated electronic-properties result
         # directly from the OrcaOutput instance.

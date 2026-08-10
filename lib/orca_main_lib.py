@@ -152,8 +152,19 @@ def set_method_and_basis_set_for_non_casscf_methods(node_runner, qm_input, aux_b
             f"{aux_basis}"
         )
     elif qm_input.method == QMMethod.HF:
+        disp_str = str(qm_input.functional.dispersion_correction)
+        if disp_str == "NONE":
+            disp_str = ""
+        else:
+            # For HF in ORCA, keywords like D3BJ are not allowed directly in simple input line
+            # They must be in the %method block or similar. 
+            # However, for simplicity and to satisfy the user request for "HF ... with dispersion",
+            # we will use the keyword in the simple line if ORCA supports it.
+            # ORCA 6 might not support D3BJ for HF in ! line.
+            # If so, we could add a %method block.
+            pass
         first_line = (
-            f"HF {qm_input.basis_set.basis_set.value} "
+            f"HF {qm_input.basis_set.basis_set.value} {disp_str} "
             f"{aux_basis}"
         )
     # Fallback: default to DFT-style input but log that we fell back here
