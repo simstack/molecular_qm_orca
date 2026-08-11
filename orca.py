@@ -394,9 +394,7 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
             if orbital_energies_df is None:
                 node_runner.info("No ORBITAL ENERGIES section in orca.out; skipping.")
             else:
-                logger.info(
-                    f"Parsed orbital energies DataFrame: {orbital_energies_df.head()}"
-                )
+                node_runner.info(f"Parsed orbital energies DataFrame: {orbital_energies_df.head()}")
         except Exception as e:
             node_runner.warning(f"Error parsing ORCA orbital energies: {e}")
             orbital_energies_df = None
@@ -466,20 +464,11 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
             # switching the condition to ``if False``.
             if False: #debug deactivated - switch to True if stuff seems to be missing again
                 try:
-                    node_runner.info(
-                        "QMResult_elprop.static_hyperpolarizability_tensor = %s",
-                        elprop_result.static_hyperpolarizability_tensor,
-                    )
-                    node_runner.info(
-                        "QMResult_elprop.aligned_static_hyperpolarizability_tensor = %s",
-                        elprop_result.aligned_static_hyperpolarizability_tensor,
-                    )
+                    node_runner.info(f"QMResult_elprop.static_hyperpolarizability_tensor = {elprop_result.static_hyperpolarizability_tensor}")
+                    node_runner.info(f"QMResult_elprop.aligned_static_hyperpolarizability_tensor = {elprop_result.aligned_static_hyperpolarizability_tensor}")
 
                 except Exception as e_elprop_debug:  # pragma: no cover - debug logging only
-                    node_runner.warning(
-                        "Failed to log QMResult_elprop hyperpolarizability tensors: %s",
-                        e_elprop_debug,
-                    )
+                    node_runner.warning(f"Failed to log QMResult_elprop hyperpolarizability tensors: {e_elprop_debug}")
         except Exception as e_elprop:  # pragma: no cover - defensive
             node_runner.warning(f"Failed to construct QMResult_elprop from OrcaOutput: {e_elprop}")
 
