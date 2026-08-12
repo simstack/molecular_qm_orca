@@ -57,8 +57,8 @@ async def test_water_hf_basis_sets_and_dispersion(initialized_context, water, tm
                         print(f.read())
 
             assert simstack_result.status == TaskStatus.COMPLETED
-            assert hasattr(simstack_result, "orca_result")
-            qm_result = simstack_result.orca_result
+            assert hasattr(simstack_result, "result")
+            qm_result = simstack_result.result
 
             assert qm_result.final_energy is not None
             assert qm_result.final_energy < -70.0  # Rough sanity check for water energy
