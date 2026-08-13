@@ -75,7 +75,16 @@ def _copy_scalar_fields(orca_run: Any) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for attr in _QMRESULT_ATTRS:
         if hasattr(orca_run, attr):
+            if attr == "error":
+                continue
             result[attr] = getattr(orca_run, attr)
+
+        #the following does not work due to the error reqiring an msg argument
+        #  if callable(getattr(orca_run, attr)):
+        #         result[attr] = getattr(orca_run, attr)()
+        #     else:
+        #         result[attr] = getattr(orca_run, attr)
+
 
     # Legacy OrcaRun used the misspelled ``scf_converge``.
     if "scf_converged" not in result or result["scf_converged"] is None:
