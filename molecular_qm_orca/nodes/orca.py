@@ -6,16 +6,23 @@ from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
 from simstack.models.files import FileStack
 
-from applications.electronic_structure import QMInput, QMResultElProp
-from .lib.orbital_energies_parser import parse_orbital_energies
-from .lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
-from .lib.orca_excited_states_parser import parse_orca_excited_states
-from .lib.orca_frequency_parser import parse_vibrational_frequencies, parse_normal_modes, parse_ir_spectrum
-from .lib.orca_mayer_parser import parse_mayer_analysis
-from .orca_input import orca_input_factory
+from molecular_qm_models import QMInput, QMResultElProp
+from molecular_qm_orca.lib.orbital_energies_parser import parse_orbital_energies
+from molecular_qm_orca.lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
+from molecular_qm_orca.lib.orca_excited_states_parser import parse_orca_excited_states
+from molecular_qm_orca.lib.orca_frequency_parser import (
+    parse_ir_spectrum,
+    parse_normal_modes,
+    parse_vibrational_frequencies,
+)
+from molecular_qm_orca.lib.orca_input import orca_input_factory
+from molecular_qm_orca.lib.orca_mayer_parser import parse_mayer_analysis
+from molecular_qm_orca.lib.orca_output import OrcaOutput
+from molecular_qm_orca.lib.qm_result_from_orca import (
+    ORCA_QMRESULT_FILES,
+    from_orca_output as qm_result_from_orca_output,
+)
 import logging
-from .orca_output import OrcaOutput
-from molecular_qm_orca.lib.qm_result_from_orca import ORCA_QMRESULT_FILES, from_orca_output as qm_result_from_orca_output
 
 logger = logging.getLogger(__name__)
 

@@ -3,3 +3,26 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# IDEs and Editors
+.idea/
+.vscode/
+.cursor/
+
+# Environments and Package Managers
+.venv/
+venv/
+__pypackages__/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Simstack state
+simstack.toml

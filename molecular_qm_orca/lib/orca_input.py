@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional
 
-from applications.electronic_structure import MoleculeList, Molecule
+from molecular_qm_models.molecule import Molecule, MoleculeList
 from molecular_qm_models.qm_input import QMInput, QMMethod, OptimizationAccuracy, SCFAccuracy
 from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from simstack.models.parameters import SlurmParameters

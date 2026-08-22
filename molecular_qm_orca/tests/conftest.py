@@ -68,11 +68,9 @@ async def initialized_context():
     # )
 
     await context.initialize()
-    # Initialize model and node tables
-    dirs = [
-        Path(__file__).parents[2] / "molecular_qm_models",
-        Path(__file__).parents[1]
-    ]
+    # Scan this nested package; installed deps (molecular_qm_models) come
+    # from simstack.modules entry points.
+    dirs = [Path(__file__).resolve().parents[1]]
 
     await make_model_table(context.db, dirs=dirs, drops="src", clear=False,
                            project_root=project_root, ignore_entrypoints=False)

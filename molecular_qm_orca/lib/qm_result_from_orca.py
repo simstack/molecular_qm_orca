@@ -13,8 +13,7 @@ from simstack.models.file_list import FileList
 from simstack.models.files import FileStack
 
 if TYPE_CHECKING:
-    from applications.electronic_structure.orca.pyorca import OrcaRun
-    from molecular_qm_orca.orca_output import OrcaOutput
+    from molecular_qm_orca.lib.orca_output import OrcaOutput
 
 logger = logging.getLogger("make_qm_result")
 
@@ -118,7 +117,7 @@ async def _collect_qmresult_files() -> FileList:
 
 
 async def from_orca_output(
-    orca_run: "OrcaOutput | OrcaRun",
+    orca_run: "OrcaOutput",
     task_id: Optional[str] = None,
 ) -> QMResult:
     """Create a :class:`QMResult` from an ``OrcaOutput`` or legacy ``OrcaRun``.

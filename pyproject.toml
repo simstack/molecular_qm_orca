@@ -1,30 +1,56 @@
 [project]
 name = "molecular_qm_orca"
 version = "0.1.0"
-description = "ORCA wrapper"
-requires-python = ">=3.12"
+description = "ORCA capabilities for molecular quantum mechanics within the Simstack framework"
+readme = "README.md"
+requires-python = ">=3.12, <3.13"
+license = { text = "MIT" }
+authors = [
+  { name = "Wolfgang Wenzel", email = "wolfgang.wenzel@kit.edu" }
+]
 dependencies = [
     "molecular_qm_models",
+    "simstack",
 ]
 
-[tool.uv.sources]
-molecular_qm_models = { workspace = true }
+[project.entry-points."simstack.modules"]
+molecular_qm_orca = "molecular_qm_orca"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# Flat repo layout: modules live at the repo root, but must install as
-# molecular_qm_orca.* (nested package name).
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
-bypass-selection = true
+packages = ["molecular_qm_orca"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"__init__.py" = "molecular_qm_orca/__init__.py"
-"orca.py" = "molecular_qm_orca/orca.py"
-"orca_input.py" = "molecular_qm_orca/orca_input.py"
-"orca_output.py" = "molecular_qm_orca/orca_output.py"
-"lib" = "molecular_qm_orca/lib"
+"molecular_qm_orca/tests/data" = "molecular_qm_orca/tests/data"
 
-[project.entry-points."simstack.modules"]
-molecular_qm_orca = "molecular_qm_orca"
+[tool.uv.sources]
+molecular_qm_models = { git = "https://github.com/simstack/molecular_qm_models.git" }
+simstack = { git = "https://github.com/simstack/simstack.git", rev = "fix-git-pull" }
+
+[tool.uv]
+# int-nano: numpy 2.5+ has no usable wheel and fails to build (cython/meson).
+override-dependencies = [
+    "molecular_qm_models @ git+https://github.com/simstack/molecular_qm_models.git",
+    "simstack @ git+https://github.com/simstack/simstack.git@fix-git-pull",
+    "numpy<2.5.0",
+]
+constraint-dependencies = [
+    "numpy<2.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["molecular_qm_orca/tests"]
