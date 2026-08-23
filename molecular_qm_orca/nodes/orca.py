@@ -1,12 +1,13 @@
 import os
 import subprocess
-from typing import List, Optional
+from typing import List, Optional, Sequence
 from simstack.core.context import context
 from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
 from simstack.models.files import FileStack
 
-from molecular_qm_models import QMInput, QMResultElProp
+from molecular_qm_models import QMResultElProp
+from molecular_qm_orca.models import OrcaQMInput
 from molecular_qm_orca.lib.orbital_energies_parser import parse_orbital_energies
 from molecular_qm_orca.lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
 from molecular_qm_orca.lib.orca_excited_states_parser import parse_orca_excited_states
@@ -26,13 +27,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
-ORCA_RESULT_FILES = [
-    "orca.out",
-    *ORCA_QMRESULT_FILES,
-    "orca_run.log",
-]
-
 # Human-readable logs attached to the node as info_files.
 # Restart/geometry artifacts belong on QMResult.files via
 # :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output` — not here.
@@ -42,7 +36,7 @@ ORCA_INFO_FILES = (
 )
 
 
-def orca_run_command(input_files: List[str], result_files: List[str], arg_hash: str):
+def orca_run_command(input_files: List[str], result_files: Sequence[str], arg_hash: str):
     try:
         context.resource_config.run("orca", input_files, result_files)
         return 0
@@ -60,7 +54,7 @@ def _remove_restart_artifacts():
                 logger.warning("Could not remove restart artifact %s", path)
 
 
-async def _write_orca_input(qm_input: QMInput, use_restart: bool, **kwargs) -> bool:
+async def _write_orca_input(qm_input: OrcaQMInput, use_restart: bool, **kwargs) -> bool:
     """Generate ``orca.inp`` and return whether restart data was incorporated."""
     orca_input_gen = orca_input_factory(qm_input, use_restart=use_restart, **kwargs)
 
@@ -100,7 +94,7 @@ def _collect_existing_orca_info_files(node_runner) -> None:
             node_runner.warning(f"Failed to attach ORCA info file {fname}: {e}")
 
 
-def _apply_convergence_flags(orca_out: OrcaOutput, qm_input: QMInput) -> None:
+def _apply_convergence_flags(orca_out: OrcaOutput, qm_input: OrcaQMInput) -> None:
     """Apply input-dependent convergence / termination semantics.
 
     - If optimization was not requested, force ``optimization_converged`` to
@@ -118,7 +112,7 @@ def _apply_convergence_flags(orca_out: OrcaOutput, qm_input: QMInput) -> None:
 
 
 def _apply_nonzero_returncode(
-    orca_out: OrcaOutput, qm_input: QMInput, returncode: int
+    orca_out: OrcaOutput, qm_input: OrcaQMInput, returncode: int
 ) -> str:
     """Force abnormal termination on non-zero process exit; return error text.
 
@@ -137,7 +131,7 @@ def _apply_nonzero_returncode(
 
 
 def _continue_after_orca_failure(
-    node_runner, orca_out: Optional[OrcaOutput], qm_input: QMInput, returncode: int
+    node_runner, orca_out: Optional[OrcaOutput], qm_input: OrcaQMInput, returncode: int
 ):
     """Handle abnormal/nonzero ORCA outcome.
 
@@ -197,7 +191,7 @@ def _continue_after_orca_failure(
     return node_runner.fail(msg)
 
 
-async def _retry_orca_without_restart(qm_input: QMInput, **kwargs) -> int:
+async def _retry_orca_without_restart(qm_input: OrcaQMInput, **kwargs) -> int:
     """Clear restart data, regenerate input, and re-run ORCA."""
     node_runner = kwargs["node_runner"]
     _remove_restart_artifacts()
@@ -206,11 +200,11 @@ async def _retry_orca_without_restart(qm_input: QMInput, **kwargs) -> int:
         FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True)
     )
     node_runner.info("input files done (retry without restart)")
-    return orca_run_command(["orca.inp"], ORCA_RESULT_FILES, kwargs["arg_hash"])
+    return orca_run_command(["orca.inp"], ORCA_QMRESULT_FILES, kwargs["arg_hash"])
 
 
 @node
-async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
+async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
     """Async function that generates input files, runs a configuration-driven
     ORCA computation workflow, and parses the results.
 
@@ -256,7 +250,7 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
     :func:`orca`.
 
     Parameters:
-        qm_input (QMInput): Quantum mechanical input parameters object
+        qm_input (OrcaQMInput): ORCA-specific quantum mechanical input
             that specifies molecular, electronic, and computational
             details for ORCA calculations.
 
@@ -290,7 +284,7 @@ async def orca(qm_input: QMInput, **kwargs) -> SimstackResult:
     node_runner.info("input files done")
 
     input_files = ["orca.inp", "orca.gbw", "orca.xyz"]
-    returncode = orca_run_command(input_files, ORCA_RESULT_FILES, kwargs["arg_hash"])
+    returncode = orca_run_command(input_files, ORCA_QMRESULT_FILES, kwargs["arg_hash"])
 
     orca_run = OrcaOutput.load_orca_output(node_runner)
     if orca_run is not None:

@@ -5,7 +5,7 @@ ORCA capabilities for molecular quantum mechanics within the Simstack framework.
 ## Layout
 
 - `nodes/` — `orca` node (single-point and geometry optimization)
-- `models/` — ORCA uses shared `QMInput` from `molecular_qm_models`
+- `models/` — `OrcaQMInput` (ORCA-specific; dispersion is a sibling of functional)
 - `lib/` — input writer, output parser, result builders
 - `testing/` — manual/integration scripts
 - `tests/` — tests that do not require a committed `uv.lock`

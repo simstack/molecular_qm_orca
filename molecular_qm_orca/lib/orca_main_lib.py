@@ -1,6 +1,33 @@
 from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy
 
 
+def _functional_keyword(qm_input) -> str:
+    functional = getattr(qm_input, "functional", None)
+    if functional is None:
+        return ""
+    if hasattr(functional, "keyword"):
+        return functional.keyword()
+    value = getattr(functional, "functional", functional)
+    return getattr(value, "value", str(value))
+
+
+def orca_dispersion_keyword(qm_input) -> str:
+    """ORCA simple-input keyword for the sibling dispersion correction."""
+    disp = getattr(qm_input, "dispersion_correction", None)
+    if disp is None:
+        functional = getattr(qm_input, "functional", None)
+        disp = getattr(functional, "dispersion_correction", None)
+    if disp is None:
+        return ""
+    if hasattr(disp, "keyword"):
+        return disp.keyword()
+    value = getattr(disp, "value", disp)
+    raw = getattr(value, "value", value)
+    if not raw or str(raw).upper() == "NONE":
+        return ""
+    return str(raw)
+
+
 def add_grid_to_simple_input_line(first_line, qm_input):
     '''Adds grid specifications to the first line of the ORCA input if a grid type is specified in qm_input.
     to declutter the main moved to lib file - can later be replaced by version-specific generators to be loaded
@@ -126,6 +153,9 @@ def set_method_and_basis_set_for_non_casscf_methods(node_runner, qm_input, aux_b
     method specification.
     """
 
+    functional_kw = _functional_keyword(qm_input)
+    basis_kw = qm_input.basis_set.basis_set.value
+
     # Correlated wavefunction methods: use the method keyword directly
     if qm_input.method in {
         QMMethod.DLPNO_CCSD,
@@ -135,51 +165,28 @@ def set_method_and_basis_set_for_non_casscf_methods(node_runner, qm_input, aux_b
     }:
         method_str = qm_input.method.value
         if first_line:
-            first_line = (
-                f"{first_line} {method_str} {qm_input.basis_set.basis_set.value} "
-                f"{aux_basis}"
-            )
+            first_line = f"{first_line} {method_str} {basis_kw} {aux_basis}"
         else:
-            first_line = (
-                f"{method_str} {qm_input.basis_set.basis_set.value} "
-                f"{aux_basis}"
-            )
+            first_line = f"{method_str} {basis_kw} {aux_basis}"
 
     # DFT/TDDFT: use functional name plus basis
     elif qm_input.method in {QMMethod.DFT, QMMethod.TDDFT}:
-        first_line = (
-            f"{qm_input.functional.functional.value} {qm_input.basis_set.basis_set.value} "
-            f"{aux_basis}"
-        )
+        first_line = f"{functional_kw} {basis_kw} {aux_basis}"
     elif qm_input.method == QMMethod.HF:
-        disp_str = str(qm_input.functional.dispersion_correction)
-        if disp_str == "NONE":
-            disp_str = ""
-        else:
-            # For HF in ORCA, keywords like D3BJ are not allowed directly in simple input line
-            # They must be in the %method block or similar. 
-            # However, for simplicity and to satisfy the user request for "HF ... with dispersion",
-            # we will use the keyword in the simple line if ORCA supports it.
-            # ORCA 6 might not support D3BJ for HF in ! line.
-            # If so, we could add a %method block.
-            pass
-        first_line = (
-            f"HF {qm_input.basis_set.basis_set.value} {disp_str} "
-            f"{aux_basis}"
-        )
+        first_line = f"HF {basis_kw} {aux_basis}"
     # Fallback: default to DFT-style input but log that we fell back here
     else:
-        first_line = (
-            f"{qm_input.functional.functional.value} {qm_input.basis_set.basis_set.value} "
-            f"{aux_basis}"
-        )
+        first_line = f"{functional_kw} {basis_kw} {aux_basis}"
         if node_runner is not None:
             node_runner.info(
-                f"Defaulting to DFT with functional {qm_input.functional.functional.value} "
-                f"and basis set {qm_input.basis_set.basis_set.value} for method {qm_input.method}"
+                f"Defaulting to DFT with functional {functional_kw} "
+                f"and basis set {basis_kw} for method {qm_input.method}"
             )
 
-    return first_line
+    disp_kw = orca_dispersion_keyword(qm_input)
+    if disp_kw:
+        first_line = f"{first_line} {disp_kw}"
+    return " ".join(first_line.split())
 
 
 def set_orca_memory_and_pal_options_according_to_slurm_parameters(

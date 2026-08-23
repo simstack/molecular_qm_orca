@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from molecular_qm_models.molecule import Molecule, MoleculeList
-from molecular_qm_models.qm_input import QMInput, QMMethod, OptimizationAccuracy, SCFAccuracy
+from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy, SCFAccuracy
+from molecular_qm_orca.models import OrcaQMInput
 from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from simstack.models.parameters import SlurmParameters
 from simstack.models.files import FileStack
@@ -20,9 +21,9 @@ def _materialize_restart_file(file_stack: FileStack, filename: str, local_dir: P
     return file_stack.get(target_dir)
 
 
-def orca_input_factory(qm_input: QMInput, **kwargs) -> "OrcaInput":
+def orca_input_factory(qm_input: OrcaQMInput, **kwargs) -> "OrcaInput":
     """
-    Returns the appropriate OrcaInput subclass based on the provided QMInput.
+    Returns the appropriate OrcaInput subclass based on the provided OrcaQMInput.
     """
     if qm_input.active_electrons > 0 or qm_input.method == QMMethod.CASSCF:
         return OrcaInputCASSCF(qm_input, **kwargs)
@@ -39,7 +40,7 @@ class OrcaInput(ABC):
     Abstract base class for ORCA input generation.
     """
 
-    def __init__(self, qm_input: QMInput, **kwargs):
+    def __init__(self, qm_input: OrcaQMInput, **kwargs):
         self.qm_input = qm_input
         self.kwargs = kwargs
         self.node_runner = kwargs.get("node_runner")

@@ -3,11 +3,12 @@ from pathlib import Path
 import os
 from simstack.core.context import context
 
-from molecular_qm_models import QMInput, BasisSet, QMMethod
-from odmantic import ObjectId
+from molecular_qm_models import BasisSet
 from molecular_qm_models.basis_set import BasisSetEnum
-from molecular_qm_models.density_functional import Functional, FunctionalEnum
-from molecular_qm_models.dispersion_correction import DispersionCorrection, DispersionCorrectionEnum
+from molecular_qm_models.density_functional import FunctionalEnum
+from molecular_qm_models.dispersion_correction import DispersionCorrectionEnum
+from molecular_qm_models.qm_input import QMMethod
+from molecular_qm_orca.models import DispersionCorrection, OrcaFunctional, OrcaQMInput
 from molecular_qm_orca.orca import orca
 from simstack.models import Parameters
 from simstack.models.files import FileStack
@@ -21,22 +22,17 @@ async def test_water_hf_basis_sets_and_dispersion(initialized_context, water, tm
     """
     basis_sets = [BasisSetEnum.Def2_SVP]
     dispersion_options = [DispersionCorrectionEnum.NONE]
-    
-    # Use a unique project ID for this test to avoid conflicts with previous runs
-    project_id = ObjectId()
 
     for basis_enum in basis_sets:
         for disp_enum in dispersion_options:
-            # Setup QMInput
+            # Setup OrcaQMInput
             basis = BasisSet(basis_set=basis_enum)
-            disp = DispersionCorrection(value=disp_enum)
-            functional = Functional(functional=FunctionalEnum.B3LYP, dispersion_correction=disp)
-
-            qm_input = QMInput(
+            qm_input = OrcaQMInput(
                 molecule=water,
                 method=QMMethod.HF,
                 basis_set=basis,
-                functional=functional,
+                functional=OrcaFunctional(functional=FunctionalEnum.B3LYP),
+                dispersion_correction=DispersionCorrection(value=disp_enum),
                 charge=0,
                 multiplicity=1
             )
