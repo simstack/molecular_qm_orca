@@ -9,7 +9,7 @@ from molecular_qm_models.basis_set import BasisSetEnum
 from molecular_qm_models.density_functional import FunctionalEnum
 from molecular_qm_models.dispersion_correction import DispersionCorrectionEnum
 from molecular_qm_models.qm_input import QMMethod
-from molecular_qm_orca.models import DispersionCorrection, OrcaFunctional, OrcaQMInput
+from molecular_qm_orca.models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
 from molecular_qm_orca.orca import orca
 from simstack.models.file_list import FileList
 from .fixtures import water
@@ -25,7 +25,7 @@ async def test_orca_restart(initialized_context, water, tmp_path):
     # 1. Setup first run: limited SCF iterations
     basis = BasisSet(basis_set=BasisSetEnum.Def2_TZVP)
     functional = OrcaFunctional(functional=FunctionalEnum.B3LYP)
-    dispersion = DispersionCorrection(value=DispersionCorrectionEnum.NONE)
+    dispersion = OrcaDispersionCorrection(value=DispersionCorrectionEnum.NONE)
 
     qm_input_fail = OrcaQMInput(
         molecule=water,

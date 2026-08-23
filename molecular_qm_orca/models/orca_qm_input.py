@@ -54,7 +54,7 @@ def normalize_functional_and_dispersion(data: dict) -> dict:
 
 
 @simstack_model
-class DispersionCorrection(EmbeddedModel):
+class OrcaDispersionCorrection(EmbeddedModel):
     """Dispersion correction for ORCA jobs, including non-DFT methods."""
 
     field_name: str = "DispersionCorrection"
@@ -119,8 +119,8 @@ class OrcaQMInput(Model):
     open_shell_calculation: bool = Field(False, json_schema_extra={"description": "Open shell calculation"})
     basis_set: BasisSet = Field(default_factory=BasisSet)
     functional: OrcaFunctional = Field(default_factory=OrcaFunctional)
-    dispersion_correction: DispersionCorrection = Field(
-        default_factory=DispersionCorrection,
+    dispersion_correction: OrcaDispersionCorrection = Field(
+        default_factory=OrcaDispersionCorrection,
         json_schema_extra={
             "description": (
                 "Dispersion correction for the calculation. Independent of the "
@@ -362,7 +362,7 @@ class OrcaQMInput(Model):
         solvent_model_schema = properties.pop("solvent_model", None)
 
         properties["functional"] = OrcaFunctional.json_schema()
-        properties["dispersion_correction"] = DispersionCorrection.json_schema()
+        properties["dispersion_correction"] = OrcaDispersionCorrection.json_schema()
 
         schema.setdefault("dependencies", {}).update(
             {

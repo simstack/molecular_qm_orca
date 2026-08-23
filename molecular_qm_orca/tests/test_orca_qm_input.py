@@ -6,7 +6,7 @@ from molecular_qm_models.dispersion_correction import (
 from molecular_qm_models.molecule import Atom, Molecule
 from molecular_qm_orca.lib.orca_main_lib import set_method_and_basis_set_for_non_casscf_methods
 from molecular_qm_orca.models.orca_functional import OrcaFunctional
-from molecular_qm_orca.models.orca_qm_input import DispersionCorrection, OrcaQMInput
+from molecular_qm_orca.models.orca_qm_input import OrcaDispersionCorrection, OrcaQMInput
 from molecular_qm_models.qm_input import QMMethod
 
 
@@ -23,7 +23,7 @@ def _qm_input(**overrides) -> OrcaQMInput:
         "molecule": _water(),
         "method": QMMethod.DFT,
         "functional": FunctionalEnum.B3LYP,
-        "dispersion_correction": DispersionCorrection(value=DispersionCorrectionEnum.NONE),
+        "dispersion_correction": OrcaDispersionCorrection(value=DispersionCorrectionEnum.NONE),
     }
     payload.update(overrides)
     return OrcaQMInput(**payload)
@@ -62,7 +62,7 @@ def test_nested_functional_dispersion_is_lifted():
 def test_dft_first_line_uses_sibling_dispersion():
     qm_input = _qm_input(
         functional=FunctionalEnum.B3LYP,
-        dispersion_correction=DispersionCorrection(value=DispersionCorrectionEnum.D3BJ),
+        dispersion_correction=OrcaDispersionCorrection(value=DispersionCorrectionEnum.D3BJ),
     )
     first_line = set_method_and_basis_set_for_non_casscf_methods(None, qm_input, "")
     assert "B3LYP" in first_line

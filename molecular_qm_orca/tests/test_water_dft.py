@@ -9,7 +9,7 @@ from molecular_qm_models.basis_set import BasisSetEnum
 from molecular_qm_models.density_functional import FunctionalEnum
 from molecular_qm_models.dispersion_correction import DispersionCorrectionEnum
 from molecular_qm_models.qm_input import QMMethod, SolventModel
-from molecular_qm_orca.models import DispersionCorrection, OrcaFunctional, OrcaQMInput
+from molecular_qm_orca.models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
 from molecular_qm_orca.orca import orca
 from simstack.models import Parameters
 from .fixtures import water
@@ -94,7 +94,7 @@ async def test_water_dft(initialized_context, water, tmp_path, gather):
             method=QMMethod.DFT,
             basis_set=basis,
             functional=OrcaFunctional(functional=case["functional"]),
-            dispersion_correction=DispersionCorrection(value=case["dispersion"]),
+            dispersion_correction=OrcaDispersionCorrection(value=case["dispersion"]),
             charge=0,
             multiplicity=1,
             solvent=case["solvent"],
