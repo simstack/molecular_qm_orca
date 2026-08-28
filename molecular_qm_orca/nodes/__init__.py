@@ -1,3 +1,3 @@
-from molecular_qm_orca.nodes.orca import orca
+from .orca import orca
 
 __all__ = ["orca"]

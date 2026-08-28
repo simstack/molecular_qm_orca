@@ -7,19 +7,19 @@ from simstack.core.simstack_result import SimstackResult
 from simstack.models.files import FileStack
 
 from molecular_qm_models import QMResultElProp
-from molecular_qm_orca.models import OrcaQMInput
-from molecular_qm_orca.lib.orbital_energies_parser import parse_orbital_energies
-from molecular_qm_orca.lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
-from molecular_qm_orca.lib.orca_excited_states_parser import parse_orca_excited_states
-from molecular_qm_orca.lib.orca_frequency_parser import (
+from ..models import OrcaQMInput
+from ..lib.orbital_energies_parser import parse_orbital_energies
+from ..lib.orca_absorption_spectrum_parser import parse_orca_absorption_spectrum
+from ..lib.orca_excited_states_parser import parse_orca_excited_states
+from ..lib.orca_frequency_parser import (
     parse_ir_spectrum,
     parse_normal_modes,
     parse_vibrational_frequencies,
 )
-from molecular_qm_orca.lib.orca_input import orca_input_factory
-from molecular_qm_orca.lib.orca_mayer_parser import parse_mayer_analysis
-from molecular_qm_orca.lib.orca_output import OrcaOutput
-from molecular_qm_orca.lib.qm_result_from_orca import (
+from ..lib.orca_input import orca_input_factory
+from ..lib.orca_mayer_parser import parse_mayer_analysis
+from ..lib.orca_output import OrcaOutput
+from ..lib.qm_result_from_orca import (
     ORCA_QMRESULT_FILES,
     from_orca_output as qm_result_from_orca_output,
 )
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Human-readable logs attached to the node as info_files.
 # Restart/geometry artifacts belong on QMResult.files via
-# :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output` — not here.
+# :func:`..qm_result_from_orca.from_orca_output` — not here.
 ORCA_INFO_FILES = (
     "orca.out",
     "orca_run.log",
@@ -76,7 +76,7 @@ def _collect_existing_orca_info_files(node_runner) -> None:
 
     Restart and geometry artifacts (gbw/xyz/opt/densities/engrad/traj) are not
     info files; they are collected into ``QMResult.files`` by
-    :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output`.
+    :func:`..qm_result_from_orca.from_orca_output`.
     """
     already = {getattr(fs, "name", None) for fs in node_runner.info_files}
     for fname in ORCA_INFO_FILES:
@@ -118,7 +118,7 @@ def _apply_nonzero_returncode(
 
     Sets ``normal_termination=False`` and ``error`` on ``orca_out`` so both
     fields propagate into :class:`QMResult` via
-    :func:`molecular_qm_orca.qm_result_from_orca.from_orca_output`.
+    :func:`..qm_result_from_orca.from_orca_output`.
     """
     msg = f"orca execution failed with return code {returncode}"
     if orca_out.scf_converged is False:

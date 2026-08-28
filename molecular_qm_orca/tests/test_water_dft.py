@@ -9,8 +9,8 @@ from molecular_qm_models.basis_set import BasisSetEnum
 from molecular_qm_models.density_functional import FunctionalEnum
 from molecular_qm_models.dispersion_correction import DispersionCorrectionEnum
 from molecular_qm_models.qm_input import QMMethod, SolventModel
-from molecular_qm_orca.models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
-from molecular_qm_orca.orca import orca
+from ..models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
+from ..orca import orca
 from simstack.models import Parameters
 from .fixtures import water
 

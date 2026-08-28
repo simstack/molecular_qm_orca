@@ -4,9 +4,9 @@ from molecular_qm_models.dispersion_correction import (
     DispersionCorrectionEnum,
 )
 from molecular_qm_models.molecule import Atom, Molecule
-from molecular_qm_orca.lib.orca_main_lib import set_method_and_basis_set_for_non_casscf_methods
-from molecular_qm_orca.models.orca_functional import OrcaFunctional
-from molecular_qm_orca.models.orca_qm_input import OrcaDispersionCorrection, OrcaQMInput
+from ..lib.orca_main_lib import set_method_and_basis_set_for_non_casscf_methods
+from ..models.orca_functional import OrcaFunctional
+from ..models.orca_qm_input import OrcaDispersionCorrection, OrcaQMInput
 from molecular_qm_models.qm_input import QMMethod
 
 

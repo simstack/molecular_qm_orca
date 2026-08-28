@@ -1,17 +1,14 @@
 import pytest
-from pathlib import Path
 import os
-from simstack.core.context import context
 
+from simstack.models import Parameters
 from molecular_qm_models import BasisSet
 from molecular_qm_models.basis_set import BasisSetEnum
 from molecular_qm_models.density_functional import FunctionalEnum
 from molecular_qm_models.dispersion_correction import DispersionCorrectionEnum
 from molecular_qm_models.qm_input import QMMethod
-from molecular_qm_orca.models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
-from molecular_qm_orca.orca import orca
-from simstack.models import Parameters
-from simstack.models.files import FileStack
+from ..models import OrcaDispersionCorrection, OrcaFunctional, OrcaQMInput
+from ..nodes.orca import orca
 from .fixtures import water
 
 @pytest.mark.asyncio

@@ -14,7 +14,7 @@ from molecular_qm_models.qm_input import (
     SCFAccuracy,
     SolventModel,
 )
-from molecular_qm_orca.models.orca_functional import (
+from .orca_functional import (
     OrcaFunctional,
     as_orca_functional_doc,
 )

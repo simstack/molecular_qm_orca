@@ -1,6 +1,6 @@
 """Public import path: ``from molecular_qm_orca.orca_input import orca_input_factory``."""
 
-from molecular_qm_orca.lib.orca_input import (
+from .lib.orca_input import (
     OrcaInput,
     OrcaInputCASSCF,
     OrcaInputDFT,

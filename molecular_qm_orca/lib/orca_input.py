@@ -4,12 +4,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional
 
-from molecular_qm_models.molecule import Molecule, MoleculeList
-from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy, SCFAccuracy
-from molecular_qm_orca.models import OrcaQMInput
-from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from simstack.models.parameters import SlurmParameters
 from simstack.models.files import FileStack
+from molecular_qm_models.auxiliary_basis import AuxBasisEnum
+from molecular_qm_models.molecule import Molecule, MoleculeList
+from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy, SCFAccuracy
+from ..models import OrcaQMInput
+
 
 
 def _materialize_restart_file(file_stack: FileStack, filename: str, local_dir: Path | None = None) -> Path:
