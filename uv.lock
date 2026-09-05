@@ -7,7 +7,7 @@ constraints = [{ name = "numpy", specifier = "<2.5.0" }]
 overrides = [
     { name = "molecular-qm-models", git = "https://github.com/simstack/molecular_qm_models.git" },
     { name = "numpy", specifier = "<2.5.0" },
-    { name = "simstack", git = "https://github.com/simstack/simstack.git?rev=fix-git-pull" },
+    { name = "simstack", git = "https://github.com/simstack/simstack.git?rev=ww%2Fnew-features" },
 ]
 
 [[package]]
@@ -75,11 +75,12 @@ wheels = [
 
 [[package]]
 name = "molecular-qm-models"
-version = "0.1.0"
-source = { git = "https://github.com/simstack/molecular_qm_models.git#72f8dcb49f17214d8899c6a80fb8fcfc2063074c" }
+version = "0.5.1.dev1+g52f19e061"
+source = { git = "https://github.com/simstack/molecular_qm_models.git#52f19e061ebe084e7f2519ab0250b2f294d23352" }
 dependencies = [
     { name = "numpy" },
     { name = "pydantic" },
+    { name = "simstack" },
 ]
 
 [[package]]
@@ -100,7 +101,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "molecular-qm-models", git = "https://github.com/simstack/molecular_qm_models.git" },
-    { name = "simstack", git = "https://github.com/simstack/simstack.git?rev=fix-git-pull" },
+    { name = "simstack", git = "https://github.com/simstack/simstack.git?rev=ww%2Fnew-features" },
 ]
 
 [package.metadata.requires-dev]
@@ -342,8 +343,8 @@ wheels = [
 
 [[package]]
 name = "simstack"
-version = "2.1.0.dev77"
-source = { git = "https://github.com/simstack/simstack.git?rev=fix-git-pull#4dca85ca673118b1a11c32b527d13c2f182ec618" }
+version = "2.1.0.dev151"
+source = { git = "https://github.com/simstack/simstack.git?rev=ww%2Fnew-features#42d5d3772ebf4050273231e98fc9f5047a7d7beb" }
 dependencies = [
     { name = "cloudpickle" },
     { name = "coolname" },

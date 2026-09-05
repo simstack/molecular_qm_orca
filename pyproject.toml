@@ -28,13 +28,13 @@ packages = ["molecular_qm_orca"]
 
 [tool.uv.sources]
 molecular_qm_models = { git = "https://github.com/simstack/molecular_qm_models.git" }
-simstack = { git = "https://github.com/simstack/simstack.git", rev = "fix-git-pull" }
+simstack = { git = "https://github.com/simstack/simstack.git", rev = "ww/new-features" }
 
 [tool.uv]
 # int-nano: numpy 2.5+ has no usable wheel and fails to build (cython/meson).
 override-dependencies = [
     "molecular_qm_models @ git+https://github.com/simstack/molecular_qm_models.git",
-    "simstack @ git+https://github.com/simstack/simstack.git@fix-git-pull",
+    "simstack @ git+https://github.com/simstack/simstack.git@ww/new-features",
     "numpy<2.5.0",
 ]
 constraint-dependencies = [
