@@ -1,7 +1,7 @@
 import pandas as pd
 import re
 
-def parse_orbital_energies(filename, is_filename=True, logger=None, parse_last_only=True):
+def parse_orbital_energies(filename, is_filename=True, parse_last_only=True):
     """
     Parse orbital energies from an ORCA output file into a pandas DataFrame.
     
@@ -63,23 +63,10 @@ def parse_orbital_energies(filename, is_filename=True, logger=None, parse_last_o
         # Parse the line using regex to handle potential formatting variations
         match = re.match(r'^\s*(\d+)\s+(\d+\.\d+)\s+([-]?\d+\.\d+)\s+([-]?\d+\.\d+)', line)
         if match:
-            if logger is not None:
-                logger.info(f"line {line}")
-                logger.info(f"match - orbital_no {match.group(1)}")
-                logger.info(f"match - occupation {match.group(2)}")
-                logger.info(f"match - energy_hartree {match.group(3)}")
-                logger.info(f"match - energy_ev {match.group(4)}")
             orbital_no = int(match.group(1))
-            
             occupation = float(match.group(2))
             energy_hartree = float(match.group(3))
             energy_ev = float(match.group(4))
-            
-            if logger is not None:
-                logger.info(f"parsed data - orbital_no {orbital_no}")
-                logger.info(f"occupation {occupation}")
-                logger.info(f"energy_hartree {energy_hartree}")
-                logger.info(f"energy_ev {energy_ev}")
             orbital_data.append({
                 'orbital_no': orbital_no,
                 'occupation': occupation,

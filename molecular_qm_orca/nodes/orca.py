@@ -1,10 +1,10 @@
 import os
 import subprocess
+from pathlib import Path
 from typing import List, Optional, Sequence
 from simstack.core.context import context
 from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
-from simstack.models.files import FileStack
 
 from molecular_qm_models import QMResultElProp
 from ..models import OrcaQMInput
@@ -19,6 +19,14 @@ from ..lib.orca_frequency_parser import (
 from ..lib.orca_input import orca_input_factory
 from ..lib.orca_mayer_parser import parse_mayer_analysis
 from ..lib.orca_output import OrcaOutput
+from ..lib.opt_monitor import (
+    HEARTBEAT_LOG,
+    ORCA_RUN_LOG,
+    OrcaRunMonitor,
+    append_info_file,
+    log_energy_gradient_summary,
+)
+from ..lib.optimization_timing import attach_optimizer_timings
 from ..lib.qm_result_from_orca import (
     ORCA_QMRESULT_FILES,
     from_orca_output as qm_result_from_orca_output,
@@ -32,16 +40,28 @@ logger = logging.getLogger(__name__)
 # :func:`..qm_result_from_orca.from_orca_output` — not here.
 ORCA_INFO_FILES = (
     "orca.out",
-    "orca_run.log",
+    ORCA_RUN_LOG,
+    HEARTBEAT_LOG,
 )
 
 
-def orca_run_command(input_files: List[str], result_files: Sequence[str], arg_hash: str):
+def orca_run_command(
+    input_files: List[str],
+    result_files: Sequence[str],
+    kwargs: dict,
+    monitor: OrcaRunMonitor,
+):
+    node_runner = kwargs.get("node_runner")
+    monitor.start()
     try:
-        context.resource_config.run("orca", input_files, result_files)
+        context.resource_config.run(
+            "orca", input_files, result_files, node_runner=node_runner
+        )
         return 0
     except subprocess.CalledProcessError as e:
         return e.returncode
+    finally:
+        monitor.stop()
 
 
 def _remove_restart_artifacts():
@@ -78,18 +98,9 @@ def _collect_existing_orca_info_files(node_runner) -> None:
     info files; they are collected into ``QMResult.files`` by
     :func:`..qm_result_from_orca.from_orca_output`.
     """
-    already = {getattr(fs, "name", None) for fs in node_runner.info_files}
     for fname in ORCA_INFO_FILES:
-        if not os.path.exists(fname) or fname in already:
-            continue
         try:
-            node_runner.info_files.append(
-                FileStack.from_local_file(
-                    fname, in_memory=True, is_hashable=True, secure_source=True
-                )
-            )
-            already.add(fname)
-            node_runner.info(f"Attached ORCA info file: {fname}")
+            append_info_file(node_runner, Path(fname), in_memory=True)
         except Exception as e:
             node_runner.warning(f"Failed to attach ORCA info file {fname}: {e}")
 
@@ -191,16 +202,16 @@ def _continue_after_orca_failure(
     return node_runner.fail(msg)
 
 
-async def _retry_orca_without_restart(qm_input: OrcaQMInput, **kwargs) -> int:
+async def _retry_orca_without_restart(qm_input: OrcaQMInput, **kwargs):
     """Clear restart data, regenerate input, and re-run ORCA."""
     node_runner = kwargs["node_runner"]
     _remove_restart_artifacts()
     await _write_orca_input(qm_input, use_restart=False, **kwargs)
-    node_runner.info_files.append(
-        FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True)
-    )
+    append_info_file(node_runner, Path("orca.inp"), in_memory=True)
     node_runner.info("input files done (retry without restart)")
-    return orca_run_command(["orca.inp"], ORCA_QMRESULT_FILES, kwargs["arg_hash"])
+    monitor = OrcaRunMonitor(kwargs)
+    returncode = orca_run_command(["orca.inp"], ORCA_QMRESULT_FILES, kwargs, monitor)
+    return returncode, monitor
 
 
 @node
@@ -266,9 +277,12 @@ async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
             calculations.
         orca_elprop_result (QMResultElProp, optional): Electronic
             properties result derived from the same ORCA output.
-        files (List[FileStack]): List of files generated during
-            execution of the node (such as ``orca.inp``, ``orca.out`` and
-            related auxiliary files).
+        files (List[FileStack]): Restart/geometry artifacts collected on
+            ``QMResult.files``; ``orca.inp``, ``orca.out``, ``orca_run.log``
+            and ``heartbeat.log`` are attached as ``info_files``.
+        optimization_timing (SimpleTable): Per-cycle and summary wall/CPU
+            times when ORCA reports cycle timings. Frequency jobs add a
+            separate ``frequencies`` row when a Freq module time is present.
 
     Raises:
         Exception: If there is a failure in generating input files,
@@ -279,12 +293,13 @@ async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
     node_runner = kwargs["node_runner"]
 
     used_restart = await _write_orca_input(qm_input, use_restart=True, **kwargs)
-    node_runner.info_files.append(FileStack.from_local_file("orca.inp", in_memory=True, is_hashable=True, secure_source=True))
+    append_info_file(node_runner, Path("orca.inp"), in_memory=True)
     node_runner.log("input files done")
     node_runner.info("input files done")
 
     input_files = ["orca.inp", "orca.gbw", "orca.xyz"]
-    returncode = orca_run_command(input_files, ORCA_QMRESULT_FILES, kwargs["arg_hash"])
+    monitor = OrcaRunMonitor(kwargs)
+    returncode = orca_run_command(input_files, ORCA_QMRESULT_FILES, kwargs, monitor)
 
     orca_run = OrcaOutput.load_orca_output(node_runner)
     if orca_run is not None:
@@ -315,7 +330,7 @@ async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
         node_runner.warning(f"{reason}; retrying without restart data.")
         node_runner.log(f"Clearing restart data and re-running ORCA: {reason}")
         node_runner.info(f"Clearing restart data and re-running ORCA: {reason}")
-        returncode = await _retry_orca_without_restart(qm_input, **kwargs)
+        returncode, monitor = await _retry_orca_without_restart(qm_input, **kwargs)
         orca_run = OrcaOutput.load_orca_output(node_runner)
         if orca_run is not None:
             _apply_convergence_flags(orca_run, qm_input)
@@ -344,13 +359,29 @@ async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
             f"{getattr(orca_run, 'normal_termination', None)}"
         )
 
+    try:
+        attach_optimizer_timings(
+            node_runner,
+            monitor,
+            freq_wall_s=monitor.freq_wall_s,
+            freq_cpu_s=monitor.freq_cpu_s,
+        )
+    except Exception as e_timing:
+        node_runner.warning(f"Failed to attach optimization timings: {e_timing}")
+
     if orca_run is None:
+        log_energy_gradient_summary(node_runner, monitor, None)
+        _collect_existing_orca_info_files(node_runner)
         return node_runner.fail("orca.out file not found")
 
     if returncode != 0:
         _apply_nonzero_returncode(orca_run, qm_input, returncode)
 
     if returncode != 0 or not orca_run.normal_termination:
+        try:
+            log_energy_gradient_summary(node_runner, monitor, Path("orca.out"))
+        except Exception as e_summary:
+            node_runner.warning(f"Failed to write ORCA run summary: {e_summary}")
         failed = _continue_after_orca_failure(node_runner, orca_run, qm_input, returncode)
         if failed is not None:
             return failed
@@ -394,8 +425,6 @@ async def orca(qm_input: OrcaQMInput, **kwargs) -> SimstackResult:
             orbital_energies_df = parse_orbital_energies(contents, is_filename=False)
             if orbital_energies_df is None:
                 node_runner.info("No ORBITAL ENERGIES section in orca.out; skipping.")
-            else:
-                node_runner.info(f"Parsed orbital energies DataFrame: {orbital_energies_df.head()}")
         except Exception as e:
             node_runner.warning(f"Error parsing ORCA orbital energies: {e}")
             orbital_energies_df = None
