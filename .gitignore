@@ -8,6 +8,7 @@ __pycache__/
 .idea/
 .vscode/
 .cursor/
+.junie/
 
 # Environments and Package Managers
 .venv/
