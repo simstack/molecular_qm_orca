@@ -1,4 +1,5 @@
 import math
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -271,6 +272,24 @@ def test_process_heartbeat_appends_until_stopped(tmp_path):
     assert "still running" in text
     assert extra.exists()
     assert "ORCA calculation" in extra.read_text(encoding="utf-8")
+
+
+def test_process_heartbeat_hides_windows_console():
+    heartbeat = ProcessHeartbeat("hb.log", "ORCA calculation", interval_s=1.0)
+    with patch("molecular_qm_orca.lib.process_heartbeat.subprocess.Popen") as popen:
+        popen.return_value = MagicMock()
+        heartbeat.start()
+    kwargs = popen.call_args.kwargs
+    assert kwargs["stdout"] is not None
+    assert kwargs["start_new_session"] is True
+    if sys.platform == "win32":
+        import subprocess
+
+        startupinfo = kwargs["startupinfo"]
+        assert startupinfo.dwFlags & subprocess.STARTF_USESHOWWINDOW
+        assert startupinfo.wShowWindow == subprocess.SW_HIDE
+    else:
+        assert "startupinfo" not in kwargs
 
 
 def test_monitor_rejects_undefined_intervals():
