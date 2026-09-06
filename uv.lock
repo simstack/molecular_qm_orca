@@ -75,8 +75,8 @@ wheels = [
 
 [[package]]
 name = "molecular-qm-models"
-version = "0.5.1.dev1+g52f19e061"
-source = { git = "https://github.com/simstack/molecular_qm_models.git#52f19e061ebe084e7f2519ab0250b2f294d23352" }
+version = "0.5.1.dev2+g776924fb4"
+source = { git = "https://github.com/simstack/molecular_qm_models.git#776924fb4df12785cbc42c6707689ebed344d512" }
 dependencies = [
     { name = "numpy" },
     { name = "pydantic" },
