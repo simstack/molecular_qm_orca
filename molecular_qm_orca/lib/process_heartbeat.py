@@ -145,11 +145,14 @@ class ProcessHeartbeat:
         ]
         for extra in self.extra_paths:
             cmd.extend(["--extra", extra])
-        self._proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        popen_kwargs = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "start_new_session": True,
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        self._proc = subprocess.Popen(cmd, **popen_kwargs)
 
     def stop(self):
         proc = self._proc
