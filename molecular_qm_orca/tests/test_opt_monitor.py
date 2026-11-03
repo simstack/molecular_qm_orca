@@ -186,7 +186,12 @@ def test_monitor_consume_output_logs_steps(tmp_path, monkeypatch):
     assert len(step_logs) == 2
     assert "energy=-76.434219876543 Ha" in step_logs[0]
     assert "|g|=2.345679e-03 Ha/Bohr" in step_logs[0]
+    assert "grms=2.345679e-03 Ha/Bohr" in step_logs[0]
+    assert "gmax=6.543211e-03 Ha/Bohr" in step_logs[0]
     assert "wall=12.35s" in step_logs[0]
+    assert (tmp_path / "orca_run.log").is_file()
+    run_log = (tmp_path / "orca_run.log").read_text(encoding="utf-8")
+    assert "Optimization step 1:" in run_log
     logged = [call.args[0] for call in node_runner.log.call_args_list]
     assert step_logs == [msg for msg in logged if "Optimization step " in msg]
     assert [row["step"] for row in monitor.timing_history] == [1, 2]
@@ -290,6 +295,34 @@ def test_process_heartbeat_hides_windows_console():
         assert startupinfo.wShowWindow == subprocess.SW_HIDE
     else:
         assert "startupinfo" not in kwargs
+
+
+def test_monitor_waits_for_energy_and_gradient_before_logging(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    partial = """
+          GEOMETRY OPTIMIZATION CYCLE   1
+          FINAL SINGLE POINT ENERGY      -76.434219876543
+"""
+    out = tmp_path / "orca.out"
+    out.write_text(partial, encoding="utf-8")
+    node_runner = MagicMock()
+    monitor = OrcaRunMonitor({"node_runner": node_runner}, poll_s=0.1)
+    monitor.consume_output()
+    assert not node_runner.info.call_args_list
+    out.write_text(
+        partial
+        + """
+          ----------------------|Geometry convergence|-------------------------
+          RMS gradient        0.0023456789            0.0001000000      NO
+          MAX gradient        0.0065432109            0.0003000000      NO
+""",
+        encoding="utf-8",
+    )
+    monitor.consume_output()
+    messages = [call.args[0] for call in node_runner.info.call_args_list]
+    assert len(messages) == 1
+    assert "energy=-76.434219876543 Ha" in messages[0]
+    assert "|g|=2.345679e-03 Ha/Bohr" in messages[0]
 
 
 def test_monitor_rejects_undefined_intervals():

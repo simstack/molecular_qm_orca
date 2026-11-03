@@ -338,6 +338,15 @@ def artifact_names(node_runner) -> set:
     return names
 
 
+def _append_run_log_line(path: str | Path, line: str) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = line if line.endswith("\n") else f"{line}\n"
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+
+
 def append_info_file(node_runner, path: Path, *, in_memory: bool):
     """Attach a human-readable log/info file to ``node_runner.info_files`` only."""
     if node_runner is None:
@@ -433,7 +442,7 @@ class OrcaRunMonitor:
         self.geom_iter = 0
         self.charts = (None, None)
         self._chart_steps: set[int] = set()
-        self._logged_steps: set[int] = set()
+        self._logged_complete_steps: set[int] = set()
         self._timed_steps: set[int] = set()
         self._stop = threading.Event()
         self._thread = None
@@ -512,13 +521,13 @@ class OrcaRunMonitor:
         step = int(cycle["step"])
         energy = cycle.get("energy")
         grad_norm = cycle.get("grad_norm")
+        max_gradient = cycle.get("max_gradient")
         cycle_time_s = cycle.get("cycle_time_s")
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_chart_point = False
+        log_complete_step = False
         with self._lock:
             self.geom_iter = max(self.geom_iter, step)
-            newly_logged = step not in self._logged_steps
-            if newly_logged:
-                self._logged_steps.add(step)
             if energy is not None and grad_norm is not None and step not in self._chart_steps:
                 self._chart_steps.add(step)
                 self.energy_history.append(
@@ -527,9 +536,14 @@ class OrcaRunMonitor:
                 self.grad_history.append(
                     {"step": step, "grad_norm": grad_norm, "timestamp": stamp}
                 )
-                should_flush = step % self.interval == 0
-            else:
-                should_flush = False
+                new_chart_point = True
+            if (
+                energy is not None
+                and grad_norm is not None
+                and step not in self._logged_complete_steps
+            ):
+                self._logged_complete_steps.add(step)
+                log_complete_step = True
             if (
                 cycle_time_s is not None
                 and step not in self._timed_steps
@@ -545,13 +559,15 @@ class OrcaRunMonitor:
                         "grad_norm": grad_norm,
                     }
                 )
-        if newly_logged:
-            if energy is None or grad_norm is None:
-                msg = f"{stamp} Optimization step {step}: energy/gradient unavailable"
-            else:
+        if log_complete_step:
+            msg = (
+                f"{stamp} Optimization step {step}: "
+                f"energy={float(energy):.12f} Ha, |g|={float(grad_norm):.6e} Ha/Bohr"
+            )
+            if max_gradient is not None:
                 msg = (
-                    f"{stamp} Optimization step {step}: "
-                    f"energy={float(energy):.12f} Ha, |g|={float(grad_norm):.6e} Ha/Bohr"
+                    f"{msg}, grms={float(grad_norm):.6e} Ha/Bohr, "
+                    f"gmax={float(max_gradient):.6e} Ha/Bohr"
                 )
             if cycle_time_s is not None:
                 msg = f"{msg}, wall={float(cycle_time_s):.2f}s, cpu={float(cycle_time_s):.2f}s"
@@ -561,7 +577,14 @@ class OrcaRunMonitor:
                 node_runner.info(msg)
             else:
                 logger.info(msg)
-        if should_flush:
+            try:
+                _append_run_log_line(ORCA_RUN_LOG, msg)
+            except OSError as exc:
+                if node_runner is not None:
+                    node_runner.warning(f"Failed to append ORCA run log: {exc}")
+                else:
+                    logger.warning("Failed to append ORCA run log: %s", exc)
+        if new_chart_point:
             self._flush_opt_charts()
 
     def _apply_run_timings(self, wall_s: float):
