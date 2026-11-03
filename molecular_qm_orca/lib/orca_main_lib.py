@@ -1,5 +1,7 @@
 from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy
 
+from .slurm_cpu_count import slurm_cpu_count
+
 
 def _functional_keyword(qm_input) -> str:
     functional = getattr(qm_input, "functional", None)
@@ -240,34 +242,14 @@ def set_orca_memory_and_pal_options_according_to_slurm_parameters(
             f"cpus_per_task={slurm_params.cpus_per_task}, tasks-per-node={slurm_params.tasks_per_node}"
         )
 
-        # Derive effective CPU count and %pal block
-        if (
-            slurm_params.cpus_per_task is not None
-            and slurm_params.cpus_per_task > 0
-            and slurm_params.tasks_per_node is not None
-            and slurm_params.tasks_per_node > 0
-        ):
-            pal_block = (
-                f"%pal\n nprocs {int(slurm_params.cpus_per_task) * int(slurm_params.tasks_per_node)}\nend\n\n"
-            )
-            N_cpus_eff = int(slurm_params.cpus_per_task) * int(
-                slurm_params.tasks_per_node
-            )
-        elif (
-            slurm_params.cpus_per_task is not None
-            and slurm_params.cpus_per_task > 0
-        ):
-            N_cpus_eff = int(slurm_params.cpus_per_task)
-        elif (
-            slurm_params.tasks_per_node is not None
-            and slurm_params.tasks_per_node > 0
-        ):
-            N_cpus_eff = int(slurm_params.tasks_per_node)
-        else:
+        N_cpus_eff = slurm_cpu_count(slurm_params)
+        if N_cpus_eff is None:
             node_runner.warning(
-                "Slurm parameter 'cpus_per_task' is not set or invalid, defaulting to 1 CPU."
+                "Slurm CPU parameters are not set or invalid, defaulting to 1 CPU."
             )
             N_cpus_eff = 1
+        elif N_cpus_eff > 1:
+            pal_block = f"%pal\n nprocs {N_cpus_eff}\nend\n\n"
 
         # Derive %maxcore (memory per core) block
         if slurm_params.mem is not None and slurm_params.mem != "":

@@ -10,7 +10,7 @@ from molecular_qm_models.auxiliary_basis import AuxBasisEnum
 from molecular_qm_models.molecule import Molecule, MoleculeList
 from molecular_qm_models.qm_input import QMMethod, OptimizationAccuracy, SCFAccuracy
 from ..models import OrcaQMInput
-
+from .slurm_cpu_count import slurm_cpu_count
 
 
 def _materialize_restart_file(file_stack: FileStack, filename: str, local_dir: Path | None = None) -> Path:
@@ -202,29 +202,10 @@ class OrcaInput(ABC):
     @property
     def cores_block(self) -> str:
         """Returns the %pal block based on Slurm parameters."""
-        slurm_params = self.slurm_params
-        if slurm_params is None:
+        nprocs = slurm_cpu_count(self.slurm_params)
+        if nprocs is None or nprocs <= 1:
             return ""
-        if (
-            slurm_params.cpus_per_task is not None
-            and slurm_params.cpus_per_task > 0
-            and slurm_params.tasks_per_node is not None
-            and slurm_params.tasks_per_node > 0
-        ):
-            nprocs = int(slurm_params.cpus_per_task) * int(slurm_params.tasks_per_node)
-            if nprocs > 1:
-                return f"%pal\n nprocs {nprocs}\nend\n\n"
-        elif (
-            slurm_params.cpus_per_task is not None
-            and slurm_params.cpus_per_task > 1
-        ):
-            return f"%pal\n nprocs {int(slurm_params.cpus_per_task)}\nend\n\n"
-        elif (
-            slurm_params.tasks_per_node is not None
-            and slurm_params.tasks_per_node > 1
-        ):
-            return f"%pal\n nprocs {int(slurm_params.tasks_per_node)}\nend\n\n"
-        return ""
+        return f"%pal\n nprocs {nprocs}\nend\n\n"
 
     @property
     def memory_block(self) -> str:
@@ -233,20 +214,7 @@ class OrcaInput(ABC):
         if slurm_params is None or slurm_params.mem is None or slurm_params.mem == "":
             return ""
 
-        # Derive effective CPU count to calculate memory per core
-        if (
-            slurm_params.cpus_per_task is not None
-            and slurm_params.cpus_per_task > 0
-            and slurm_params.tasks_per_node is not None
-            and slurm_params.tasks_per_node > 0
-        ):
-            n_cpus_eff = int(slurm_params.cpus_per_task) * int(slurm_params.tasks_per_node)
-        elif slurm_params.cpus_per_task is not None and slurm_params.cpus_per_task > 0:
-            n_cpus_eff = int(slurm_params.cpus_per_task)
-        elif slurm_params.tasks_per_node is not None and slurm_params.tasks_per_node > 0:
-            n_cpus_eff = int(slurm_params.tasks_per_node)
-        else:
-            n_cpus_eff = 1
+        n_cpus_eff = slurm_cpu_count(slurm_params) or 1
 
         try:
             if "G" in slurm_params.mem:
