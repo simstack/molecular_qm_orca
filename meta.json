@@ -1,0 +1,17 @@
+{
+  "title": "Molecular QM ORCA",
+  "workflow_environment": "SimStack",
+  "description": "SimStack node and data models for preparing ORCA quantum-chemistry calculations, running single-point energy and geometry optimization calculations, and parsing their results. Requires a separately installed ORCA executable.",
+  "authors": [
+    "Wolfgang Wenzel",
+    "Phillip Dullinger"
+  ],
+  "release": "v0.1.0",
+  "keywords": [
+    "SimStack",
+    "ORCA",
+    "quantum chemistry",
+    "electronic structure",
+    "geometry optimization"
+  ]
+}
